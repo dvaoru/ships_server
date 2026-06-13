@@ -13,7 +13,8 @@
     "loadtest": "tsx loadtest/example.ts --room my_room --numClients 2",
     "build": "npm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf build",
-    "test": "mocha -r tsx test/**.test.ts --exit --timeout 15000"
+    "test": "mocha -r tsx test/**.test.ts --exit --timeout 15000",
+    "schema-codegen": "schema-codegen src/rooms/schema/* --csharp --output D:/Workspace/Unity_projects/Ships/ships_client/Assets/Ships/Scripts/Network/State"
   },
   "author": "",
   "license": "UNLICENSED",
