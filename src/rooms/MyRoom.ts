@@ -26,13 +26,31 @@ export class MyRoom extends Room<MyRoomState> {
             }
         });
 
-        // 2. Принимаем факт нанесения урона
-        this.onMessage("damagePlayer", (client, data) => {
-            const target = this.state.players.get(data.targetId);
-            if (target) {
-                target.hp -= data.damageAmount;
+        // 2. Стрелок сообщает о выстреле → сервер рассылает всем
+        this.onMessage("fire", (client, data) => {
+            this.broadcast("bulletSpawned", {
+                shooterId: client.sessionId,
+                originX:   data.originX,
+                originY:   data.originY,
+                dirX:      data.dirX,
+                dirY:      data.dirY,
+                speed:     data.speed,
+                maxRange:  data.maxRange,
+                damage:    data.damage,
+            });
+        });
+
+        // 3. Жертва сообщает о попадании → сервер списывает HP
+        this.onMessage("iWasHit", (client, data) => {
+            const target = this.state.players.get(client.sessionId);
+            if (target && target.hp > 0) {
+                target.hp -= data.damage;
                 if (target.hp <= 0) {
-                    target.hp = 0; // Unity сама пришлет команду смерти для этого игрока
+                    target.hp = 0;
+                    // Высыпаем монеты погибшего
+                    this.dropGoldOnDeath(target);
+                    this.state.players.delete(client.sessionId);
+                    client.leave();
                 }
             }
         });
@@ -132,20 +150,14 @@ export class MyRoom extends Room<MyRoomState> {
   }
 
   onLeave (client: Client, code: CloseCode) {
-  const player = this.state.players.get(client.sessionId);
-        if (player && player.gold > 0) {
-            // Если игрок отключился, высыпаем все его монеты на его месте
-            for (let i = 0; i < player.gold; i++) {
-                const dropId = `dropped_${client.sessionId}_${i}_${Date.now()}`;
-                const coin = new Coin();
-                coin.id = dropId;
-                // Небольшой разброс вокруг места гибели
-                coin.x = player.x + (Math.random() * 4 - 2);
-                coin.y = player.y + (Math.random() * 4 - 2);
-                this.state.coins.set(dropId, coin);
+        const player = this.state.players.get(client.sessionId);
+        if (player) {
+            // Высыпаем монеты (если они были) на месте ухода
+            if (player.gold > 0) {
+                this.dropGoldOnDeath(player);
             }
+            this.state.players.delete(client.sessionId);
         }
-        this.state.players.delete(client.sessionId);
   }
 
   onDispose() {
@@ -160,5 +172,17 @@ export class MyRoom extends Room<MyRoomState> {
         coin.x = Math.floor(Math.random() * 100) - 50;
         coin.y = Math.floor(Math.random() * 100) - 50;
         this.state.coins.set(id, coin);
+    }
+
+  // Высыпает всё золото игрока на его месте (при смерти или дисконнекте)
+    private dropGoldOnDeath(player: Player) {
+        for (let i = 0; i < player.gold; i++) {
+            const dropId = `dropped_${player.id}_${i}_${Date.now()}`;
+            const coin = new Coin();
+            coin.id = dropId;
+            coin.x = player.x + (Math.random() * 4 - 2);
+            coin.y = player.y + (Math.random() * 4 - 2);
+            this.state.coins.set(dropId, coin);
+        }
     }
 }
