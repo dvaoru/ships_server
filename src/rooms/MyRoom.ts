@@ -42,15 +42,29 @@ export class MyRoom extends Room<MyRoomState> {
 
         // 3. Жертва сообщает о попадании → сервер списывает HP
         this.onMessage("iWasHit", (client, data) => {
-            const target = this.state.players.get(client.sessionId);
+            const targetId = data.targetId ?? client.sessionId;
+            
+            // Проверка: клиент может сообщить о попадании только по себе или своему боту
+            if (targetId !== client.sessionId && !targetId.startsWith(`bot_${client.sessionId}`)) {
+                 console.warn(`Client ${client.sessionId} tried to report hit for foreign target: ${targetId}`);
+                 return;
+            }
+
+            const target = this.state.players.get(targetId);
             if (target && target.hp > 0) {
                 target.hp -= data.damage;
                 if (target.hp <= 0) {
                     target.hp = 0;
                     // Высыпаем монеты погибшего
                     this.dropGoldOnDeath(target);
-                    this.state.players.delete(client.sessionId);
-                    client.leave();
+                    this.state.players.delete(targetId);
+                    
+                    // Если умер реальный игрок — отключаем его
+                    if (targetId === client.sessionId) {
+                        client.leave();
+                    } else {
+                        console.log(`Bot destroyed: ${targetId}`);
+                    }
                 }
             }
         });
