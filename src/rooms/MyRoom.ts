@@ -70,10 +70,12 @@ export class MyRoom extends Room<MyRoomState> {
                 // Удаляем монету
                 this.state.coins.delete(data.coinId);
                 
-                // Начисляем золото игроку
-                const player = this.state.players.get(client.sessionId);
-                if (player) {
-                    player.gold += 1;
+                // Начисляем золото явному сборщику (игрок или бот).
+                // collectorId = sessionId игрока ИЛИ botId бота
+                const collectorId = data.collectorId ?? client.sessionId;
+                const collector = this.state.players.get(collectorId);
+                if (collector) {
+                    collector.gold += 1;
                 }
 
                 // Мгновенно спавним новую монету взамен собранной
