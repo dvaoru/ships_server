@@ -81,6 +81,40 @@ export class MyRoom extends Room<MyRoomState> {
             }
         });
 
+        // 5. Регистрация бота от клиента-владельца
+        this.onMessage("spawnBot", (client, data) => {
+            const botId: string = data.botId;
+            if (!botId || this.state.players.has(botId)) return; // защита от дублей
+
+            // Бот должен принадлежать этому клиенту (prefixed by sessionId)
+            if (!botId.startsWith(`bot_${client.sessionId}`)) {
+                console.warn(`Client ${client.sessionId} tried to spawn foreign bot: ${botId}`);
+                return;
+            }
+
+            const bot = new Player();
+            bot.id   = botId;
+            bot.x    = Math.floor(Math.random() * 100) - 50;
+            bot.y    = Math.floor(Math.random() * 100) - 50;
+            bot.hp   = 100;
+            bot.gold = 0;
+            this.state.players.set(botId, bot);
+            console.log(`Bot spawned: ${botId} (owner: ${client.sessionId})`);
+        });
+
+        // 6. Обновление позиции бота от его владельца
+        this.onMessage("updateBotPosition", (client, data) => {
+            const bot = this.state.players.get(data.botId);
+            if (!bot) return;
+
+            // Проверяем право собственности — только владелец может двигать бота
+            if (!data.botId.startsWith(`bot_${client.sessionId}`)) return;
+
+            bot.x     = data.x;
+            bot.y     = data.z;   // сервер использует y как z-координату
+            bot.angle = data.angle;
+        });
+
 
     // // Handle input messages from clients
     // this.onMessage("input", (client, data) => {
@@ -158,6 +192,17 @@ export class MyRoom extends Room<MyRoomState> {
             }
             this.state.players.delete(client.sessionId);
         }
+
+        // Удаляем всех ботов этого клиента
+        const botPrefix = `bot_${client.sessionId}`;
+        const botIds: string[] = [];
+        this.state.players.forEach((_player, id) => {
+            if (id.startsWith(botPrefix)) botIds.push(id);
+        });
+        botIds.forEach(id => {
+            this.state.players.delete(id);
+            console.log(`Bot removed: ${id} (owner left: ${client.sessionId})`);
+        });
   }
 
   onDispose() {
