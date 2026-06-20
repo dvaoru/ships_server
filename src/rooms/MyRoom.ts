@@ -52,20 +52,40 @@ export class MyRoom extends Room<MyRoomState> {
 
             const target = this.state.players.get(targetId);
             if (target && target.hp > 0) {
+                // Ignore damage if invulnerable
+                if (Date.now() < target.invulnerableUntil) {
+                    return;
+                }
+
                 target.hp -= data.damage;
                 if (target.hp <= 0) {
                     target.hp = 0;
                     // Высыпаем монеты погибшего
                     this.dropGoldOnDeath(target);
-                    this.state.players.delete(targetId);
+                    target.gold = 0; // Reset gold after dropping
                     
-                    // Если умер реальный игрок — отключаем его
-                    if (targetId === client.sessionId) {
-                        client.leave();
+                    // Если умер реальный игрок — он остается в комнате в виде призрака
+                    // Если умер бот - удаляем его
+                    if (!targetId.startsWith("bot_")) {
+                        console.log(`Player destroyed but kept in room: ${targetId}`);
                     } else {
+                        this.state.players.delete(targetId);
                         console.log(`Bot destroyed: ${targetId}`);
                     }
                 }
+            }
+        });
+
+        // Обработка возрождения игрока
+        this.onMessage("respawn", (client) => {
+            const player = this.state.players.get(client.sessionId);
+            if (player && player.hp <= 0) {
+                // Новые случайные координаты
+                player.x = Math.floor(Math.random() * 100) - 50;
+                player.y = Math.floor(Math.random() * 100) - 50;
+                player.hp = 100;
+                player.invulnerableUntil = Date.now() + 3000; // 3 секунды неуязвимости
+                console.log(`Player respawned: ${client.sessionId}`);
             }
         });
 
@@ -176,16 +196,16 @@ export class MyRoom extends Room<MyRoomState> {
   }
 
   onJoin (client: Client, options: any) {
-
     const player = new Player();
-        player.id = client.sessionId;
-        // Сервер выдает рандомный спавн от -50 до 50
-        player.x = Math.floor(Math.random() * 100) - 50;
-        player.y = Math.floor(Math.random() * 100) - 50;
-        player.hp = 100;
-        player.gold = 0;
+    player.id = client.sessionId;
+    // Сервер выдает рандомный спавн от -50 до 50
+    player.x = Math.floor(Math.random() * 100) - 50;
+    player.y = Math.floor(Math.random() * 100) - 50;
+    player.hp = 100;
+    player.gold = 0;
+    player.invulnerableUntil = Date.now() + 3000; // 3 секунды неуязвимости при заходе
 
-        this.state.players.set(client.sessionId, player);
+    this.state.players.set(client.sessionId, player);
 
     // console.log(client.sessionId, "joined!");
     // const player = new Player();
