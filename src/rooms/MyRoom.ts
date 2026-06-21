@@ -11,7 +11,10 @@ export class MyRoom extends Room<MyRoomState> {
 
     // Создаем пустое состояние при старте комнаты
     //this.setState(new MyRoomState());
-    this.state = new MyRoomState();
+    var myState = new MyRoomState();
+    myState.mapWidth = this.mapWidth;
+    myState.mapHeight = this.mapHeight;
+    this.state = myState;
     console.log("Морская комната создана и ждет пиратов!");
 
     // Спавним стартовые 300 монет на случайных координатах

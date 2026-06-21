@@ -34,4 +34,8 @@ export class Coin extends Schema {
 export class MyRoomState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
   @type({ map: Coin }) coins = new MapSchema<Coin>(); // Список монет на воде
+
+  @type("number") mapWidth = 10;
+
+  @type("number") mapHeight = 10;
 }
