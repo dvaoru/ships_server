@@ -4,11 +4,14 @@ import { MyRoomState, Player, Coin } from "./schema/MyRoomState.js";
 export class MyRoom extends Room<MyRoomState> {
   maxClients = 15;
   private totalCoins = 300;
+  private mapWidth = 200;
+  private mapHeight = 200;
 
   onCreate (options: any) {
 
     // Создаем пустое состояние при старте комнаты
-    this.setState(new MyRoomState());
+    //this.setState(new MyRoomState());
+    this.state = new MyRoomState();
     console.log("Морская комната создана и ждет пиратов!");
 
     // Спавним стартовые 300 монет на случайных координатах
@@ -81,8 +84,8 @@ export class MyRoom extends Room<MyRoomState> {
             const player = this.state.players.get(client.sessionId);
             if (player && player.hp <= 0) {
                 // Новые случайные координаты
-                player.x = Math.floor(Math.random() * 100) - 50;
-                player.y = Math.floor(Math.random() * 100) - 50;
+                player.x = Math.floor(Math.random() * this.mapWidth) - this.mapWidth / 2;
+                player.y = Math.floor(Math.random() * this.mapHeight) - this.mapHeight / 2;
                 player.hp = 100;
                 player.invulnerableUntil = Date.now() + 3000; // 3 секунды неуязвимости
                 console.log(`Player respawned: ${client.sessionId}`);
@@ -130,8 +133,8 @@ export class MyRoom extends Room<MyRoomState> {
 
             const bot = new Player();
             bot.id   = botId;
-            bot.x    = Math.floor(Math.random() * 100) - 50;
-            bot.y    = Math.floor(Math.random() * 100) - 50;
+            bot.x    = Math.floor(Math.random() * this.mapWidth) - this.mapWidth / 2;
+            bot.y    = Math.floor(Math.random() * this.mapHeight) - this.mapHeight / 2;
             bot.hp   = 100;
             bot.gold = 0;
             this.state.players.set(botId, bot);
@@ -198,14 +201,16 @@ export class MyRoom extends Room<MyRoomState> {
   onJoin (client: Client, options: any) {
     const player = new Player();
     player.id = client.sessionId;
-    // Сервер выдает рандомный спавн от -50 до 50
-    player.x = Math.floor(Math.random() * 100) - 50;
-    player.y = Math.floor(Math.random() * 100) - 50;
+    // Сервер выдает рандомный спавн от -mapWidth/2 до mapWidth/2
+    player.x = Math.floor(Math.random() * this.mapWidth) - this.mapWidth / 2;
+    player.y = Math.floor(Math.random() * this.mapHeight) - this.mapHeight / 2;
     player.hp = 100;
     player.gold = 0;
     player.invulnerableUntil = Date.now() + 3000; // 3 секунды неуязвимости при заходе
 
     this.state.players.set(client.sessionId, player);
+
+    //this.send(client, "mapConfig", { width: this.mapWidth, height: this.mapHeight });
 
     // console.log(client.sessionId, "joined!");
     // const player = new Player();
@@ -249,9 +254,9 @@ export class MyRoom extends Room<MyRoomState> {
     private spawnCoin(id: string) {
         const coin = new Coin();
         coin.id = id;
-        // Рандомный спавн от -50 до 50
-        coin.x = Math.floor(Math.random() * 100) - 50;
-        coin.y = Math.floor(Math.random() * 100) - 50;
+        // Рандомный спавн от -mapWidth/2 до mapWidth/2
+        coin.x = Math.floor(Math.random() * this.mapWidth) - this.mapWidth / 2;
+        coin.y = Math.floor(Math.random() * this.mapHeight) - this.mapHeight / 2;
         this.state.coins.set(id, coin);
     }
 
