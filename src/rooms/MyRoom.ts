@@ -66,8 +66,10 @@ export class MyRoom extends Room<MyRoomState> {
                 target.hp -= data.damage;
                 if (target.hp <= 0) {
                     target.hp = 0;
-                    // Высыпаем монеты погибшего
-                    this.dropGoldOnDeath(target);
+                    // Высыпаем монеты погибшего (если не падение в бездну)
+                    if (data.shooterId !== "VOID") {
+                        this.dropGoldOnDeath(target);
+                    }
                     target.gold = 0; // Reset gold after dropping
                     
                     // Если умер реальный игрок — он остается в комнате в виде призрака
