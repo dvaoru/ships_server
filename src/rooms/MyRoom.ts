@@ -330,7 +330,6 @@ export class MyRoom extends Room<MyRoomState> {
 
             if (!this.isInsideIsland(x, y)) {
                 const coin = new Coin();
-                coin.id = id;
                 coin.x = x;
                 coin.y = y;
                 this.state.coins.set(id, coin);
@@ -340,7 +339,6 @@ export class MyRoom extends Room<MyRoomState> {
 
         // Фолбэк: спавним в центре
         const coin = new Coin();
-        coin.id = id;
         coin.x = 0;
         coin.y = 0;
         this.state.coins.set(id, coin);
@@ -351,7 +349,6 @@ export class MyRoom extends Room<MyRoomState> {
         for (let i = 0; i < player.gold; i++) {
             const dropId = `dropped_${player.id}_${i}_${Date.now()}`;
             const coin = new Coin();
-            coin.id = dropId;
             coin.x = player.x + (Math.random() * 4 - 2);
             coin.y = player.y + (Math.random() * 4 - 2);
             this.state.coins.set(dropId, coin);

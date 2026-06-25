@@ -24,9 +24,8 @@ export class Player extends Schema {
 
 // Класс монетки
 export class Coin extends Schema {
-    @type("string") id: string;
-    @type("number") x: number;
-    @type("number") y: number;
+    @type("float32") x: number;
+    @type("float32") y: number;
 }
 
 // Класс острова
