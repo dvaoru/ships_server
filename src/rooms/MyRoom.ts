@@ -3,12 +3,12 @@ import { MyRoomState, Player, Coin, Island } from "./schema/MyRoomState.js";
 
 export class MyRoom extends Room<MyRoomState> {
     maxClients = 15;
-    private totalCoins = 300;
+    private totalCoins = 1000;
     private mapWidth = 200;
     private mapHeight = 200;
 
     // ─── Настройки островов ──────────────────────────────────────────────
-    private totalIslands = 20;  // Сколько островов генерировать
+    private totalIslands = 0;//10;//20;  // Сколько островов генерировать
     private islandMinRadius = 5;   // Минимальный радиус острова (юниты)
     private islandMaxRadius = 8;   // Максимальный радиус острова
     private islandTypes = 3;   // Количество типов префабов на клиенте
@@ -74,8 +74,15 @@ export class MyRoom extends Room<MyRoomState> {
             const target = this.state.players.get(targetId);
             if (target && target.hp > 0) {
                 target.hp -= data.damage;
+                if (target.hp < 0) target.hp = 0;
                 if (target.hp <= 0) {
                     target.hp = 0;
+                    // Логируем тип смерти
+                    if (data.shooterId === "RAM_SELF") {
+                        console.log(`[RAM] Player rammed and sank: ${targetId}`);
+                    } else if (data.shooterId === "RAM") {
+                        console.log(`[RAM] Player rammed to death: ${targetId} (rammer: ${client.sessionId})`);
+                    }
                     // Высыпаем монеты погибшего (если не VOID/ISLAND)
                     if (data.shooterId !== "VOID" && data.shooterId !== "ISLAND") {
                         this.dropGoldOnDeath(target);
@@ -87,6 +94,11 @@ export class MyRoom extends Room<MyRoomState> {
                     } else {
                         this.state.players.delete(targetId);
                         console.log(`Bot destroyed: ${targetId}`);
+                    }
+                } else {
+                    // HP уронен, но цель выжила
+                    if (data.shooterId === "RAM") {
+                        console.log(`[RAM] Player rammed: ${targetId}, damage: ${data.damage}, hp left: ${target.hp}`);
                     }
                 }
             }
