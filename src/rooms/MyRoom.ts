@@ -8,7 +8,7 @@ export class MyRoom extends Room<MyRoomState> {
     private mapHeight = 200;
 
     // ─── Настройки островов ──────────────────────────────────────────────
-    private totalIslands = 0;//10;//20;  // Сколько островов генерировать
+    private totalIslands = 10;//10;//20;  // Сколько островов генерировать
     private islandMinRadius = 5;   // Минимальный радиус острова (юниты)
     private islandMaxRadius = 8;   // Максимальный радиус острова
     private islandTypes = 3;   // Количество типов префабов на клиенте
@@ -83,8 +83,8 @@ export class MyRoom extends Room<MyRoomState> {
                     } else if (data.shooterId === "RAM") {
                         console.log(`[RAM] Player rammed to death: ${targetId} (rammer: ${client.sessionId})`);
                     }
-                    // Высыпаем монеты погибшего (если не VOID/ISLAND)
-                    if (data.shooterId !== "VOID" && data.shooterId !== "ISLAND") {
+                    // Высыпаем монеты погибшего (если не VOID)
+                    if (data.shooterId !== "VOID") {
                         this.dropGoldOnDeath(target);
                     }
                     target.gold = 0;
