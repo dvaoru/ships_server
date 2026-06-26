@@ -3,7 +3,7 @@ import { MyRoomState, Player, Coin, Island } from "./schema/MyRoomState.js";
 
 export class MyRoom extends Room<MyRoomState> {
     maxClients = 15;
-    private totalCoins = 1000;
+    private totalCoins = 500;
     private mapWidth = 200;
     private mapHeight = 200;
 
@@ -155,6 +155,7 @@ export class MyRoom extends Room<MyRoomState> {
             const pos = this.safeSpawnPosition();
             const bot = new Player();
             bot.id = botId;
+            bot.name = "Пират";
             bot.x = pos.x;
             bot.y = pos.y;
             bot.hp = 100;
@@ -183,6 +184,7 @@ export class MyRoom extends Room<MyRoomState> {
     onJoin(client: Client, options: any) {
         const player = new Player();
         player.id = client.sessionId;
+        player.name = options.name || "Гроза Морей";
 
         // Спавним вне зон островов
         const pos = this.safeSpawnPosition();
