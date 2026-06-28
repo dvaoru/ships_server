@@ -88,7 +88,8 @@ export class MyRoom extends Room<MyRoomState> {
                         this.dropGoldOnDeath(target);
                     }
                     target.gold = 0;
-                    target.tier = 1;
+                    // Мы НЕ сбрасываем tier здесь, чтобы корабль тонул в своей текущей 3D-модели.
+                    // Сброс tier произойдет при респавне.
 
                     if (!targetId.startsWith("bot_")) {
                         console.log(`Player destroyed but kept in room: ${targetId}`);
@@ -114,6 +115,11 @@ export class MyRoom extends Room<MyRoomState> {
                 player.x = pos.x;
                 player.y = pos.y;
                 player.hp = 100;
+                
+                // При возрождении сбрасываем золото и тир к начальным значениям
+                player.gold = 0;
+                player.tier = 1;
+                
                 console.log(`Player respawned: ${client.sessionId}`);
             }
         });
