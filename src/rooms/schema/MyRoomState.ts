@@ -20,6 +20,7 @@ export class Player extends Schema {
     @type("number") angle: number = 0; // Направление носа в градусах
     @type("number") hp: number = 100;
     @type("number") gold: number = 0;
+    @type("int8")   tier: number = 1;
     
 }
 

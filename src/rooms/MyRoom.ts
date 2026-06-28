@@ -88,6 +88,7 @@ export class MyRoom extends Room<MyRoomState> {
                         this.dropGoldOnDeath(target);
                     }
                     target.gold = 0;
+                    target.tier = 1;
 
                     if (!targetId.startsWith("bot_")) {
                         console.log(`Player destroyed but kept in room: ${targetId}`);
@@ -135,6 +136,7 @@ export class MyRoom extends Room<MyRoomState> {
                 const collector = this.state.players.get(collectorId);
                 if (collector) {
                     collector.gold += 1;
+                    collector.tier = this.computeTier(collector.gold);
                 }
 
                 // Мгновенно спавним новую монету взамен собранной
@@ -348,12 +350,22 @@ export class MyRoom extends Room<MyRoomState> {
 
     /** Высыпает всё золото игрока на его месте (при смерти или дисконнекте) */
     private dropGoldOnDeath(player: Player) {
-        for (let i = 0; i < player.gold; i++) {
+        // Сжигаем 50% монет (анти-инфляция), выбрасываем остальные
+        const dropped = Math.floor(player.gold * 0.5);
+        for (let i = 0; i < dropped; i++) {
             const dropId = `dropped_${player.id}_${i}_${Date.now()}`;
             const coin = new Coin();
             coin.x = player.x + (Math.random() * 4 - 2);
             coin.y = player.y + (Math.random() * 4 - 2);
             this.state.coins.set(dropId, coin);
         }
+    }
+
+    /** Вычисляет тир корабля по количеству монет */
+    private computeTier(gold: number): number {
+        if (gold >= 150) return 4;
+        if (gold >= 50)  return 3;
+        if (gold >= 15)  return 2;
+        return 1;
     }
 }
