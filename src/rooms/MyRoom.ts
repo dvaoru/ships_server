@@ -145,6 +145,9 @@ export class MyRoom extends Room<MyRoomState> {
                     collector.tier = this.computeTier(collector.gold);
                 }
 
+                // Рассылаем всем информацию о том, кто собрал монету (для анимации)
+                this.broadcast("coinCollected", { coinId: data.coinId, collectorId: collectorId });
+
                 // Мгновенно спавним новую монету взамен собранной
                 this.spawnCoin(data.coinId);
             }
@@ -369,9 +372,12 @@ export class MyRoom extends Room<MyRoomState> {
 
     /** Вычисляет тир корабля по количеству монет */
     private computeTier(gold: number): number {
-        if (gold >= 150) return 4;
-        if (gold >= 50)  return 3;
+        if (gold >= 25) return 4;
+        if (gold >= 20)  return 3;
         if (gold >= 15)  return 2;
+        // if (gold >= 150) return 4;
+        // if (gold >= 50)  return 3;
+        // if (gold >= 15)  return 2;
         return 1;
     }
 }
