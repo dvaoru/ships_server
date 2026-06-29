@@ -133,6 +133,24 @@ export class MyRoom extends Room<MyRoomState> {
             }
         });
 
+        // 3.5. Принимаем обновление HP от клиента при смене тира
+        this.onMessage("updateHp", (client, data) => {
+            const targetId = data.targetId;
+            if (!targetId) return;
+
+            // Разрешаем клиенту менять HP только себе или своему боту
+            if (targetId !== client.sessionId && !targetId.startsWith(`bot_${client.sessionId}`)) {
+                console.warn(`Client ${client.sessionId} tried to update HP for foreign target: ${targetId}`);
+                return;
+            }
+
+            const target = this.state.players.get(targetId);
+            if (target) {
+                target.hp = data.hp;
+                console.log(`HP updated for ${targetId} to ${data.hp} by ${client.sessionId}`);
+            }
+        });
+
         // 4. Принимаем сбор монеты (кто первый прислал — тот и забрал)
         this.onMessage("collectCoin", (client, data) => {
             if (this.state.coins.has(data.coinId)) {
