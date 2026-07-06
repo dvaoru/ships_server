@@ -3,7 +3,7 @@ import { MyRoomState, Player, Coin, Island } from "./schema/MyRoomState.js";
 
 export class MyRoom extends Room<MyRoomState> {
   maxClients = 15;
-  private totalCoins = 10;
+  private totalCoins = 1000;
   private mapWidth = 200;
   private mapHeight = 200;
 
