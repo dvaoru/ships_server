@@ -12,7 +12,7 @@ export class MyRoom extends Room<MyRoomState> {
   private droppedCoinMinLifetime = 60000; // Минимальное время жизни выпавшей монеты (мс)
   private droppedCoinMaxLifetime = 120000; // Максимальное время жизни выпавшей монеты (мс)
   private hotspotRadius = 40; // Радиус золотой зоны (Hotspot) в центре карты
-  private hotspotChance = 0.5; // Шанс (50%), что монета заспавнится в этой зоне
+  private hotspotChance = 0.2; // Шанс (50%), что монета заспавнится в этой зоне
 
   // ─── Настройки островов ──────────────────────────────────────────────
   private totalIslands = 10; //10;//20;  // Сколько островов генерировать
