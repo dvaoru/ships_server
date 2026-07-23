@@ -3,16 +3,16 @@ import { MyRoomState, Player, Coin, Island } from "./schema/MyRoomState.js";
 
 export class MyRoom extends Room<MyRoomState> {
   maxClients = 15;
-  
+
   private mapWidth = 200;
   private mapHeight = 200;
 
   // ─── Настройки монет ─────────────────────────────────────────────────
-  private totalCoins = 300; //Количество 
+  private totalCoins = 400; //Количество 
   private droppedCoinMinLifetime = 60000; // Минимальное время жизни выпавшей монеты (мс)
   private droppedCoinMaxLifetime = 120000; // Максимальное время жизни выпавшей монеты (мс)
   private hotspotRadius = 40; // Радиус золотой зоны (Hotspot) в центре карты
-  private hotspotChance = 0.2; // Шанс (50%), что монета заспавнится в этой зоне
+  private hotspotChance = 0.2; // Шанс (20%), что монета заспавнится в этой зоне
 
   // ─── Настройки островов ──────────────────────────────────────────────
   private totalIslands = 10; //10;//20;  // Сколько островов генерировать
@@ -60,7 +60,7 @@ export class MyRoom extends Room<MyRoomState> {
       if (data.shooterId && data.shooterId.startsWith(`bot_${client.sessionId}`)) {
         shooter = data.shooterId;
       }
-      
+
       this.broadcast("bulletSpawned", {
         shooterId: shooter,
         originX: data.originX,
@@ -463,9 +463,9 @@ export class MyRoom extends Room<MyRoomState> {
     if (gold >= 260) return 7;
     if (gold >= 175) return 6;
     if (gold >= 110) return 5;
-    if (gold >= 65)  return 4;
-    if (gold >= 35)  return 3;
-    if (gold >= 15)  return 2;
+    if (gold >= 65) return 4;
+    if (gold >= 35) return 3;
+    if (gold >= 15) return 2;
     return 1;
   }
 }
