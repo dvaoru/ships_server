@@ -3,11 +3,12 @@ import { MyRoomState, Player, Coin, Island } from "./schema/MyRoomState.js";
 
 export class MyRoom extends Room<MyRoomState> {
   maxClients = 15;
-  private totalCoins = 1000;
+  
   private mapWidth = 200;
   private mapHeight = 200;
 
   // ─── Настройки монет ─────────────────────────────────────────────────
+  private totalCoins = 300; //Количество монет 
   private droppedCoinMinLifetime = 60000; // Минимальное время жизни выпавшей монеты (мс)
   private droppedCoinMaxLifetime = 120000; // Максимальное время жизни выпавшей монеты (мс)
 
