@@ -32,9 +32,7 @@ jobs:
             cd /root/ships/ships_server
 
             git pull
-
+            
             npm install
-
-            npm run build || exit 1
 
             pm2 reload colyseus
