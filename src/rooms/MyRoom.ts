@@ -420,6 +420,9 @@ export class MyRoom extends Room<MyRoomState> {
 
   /** Вычисляет тир корабля по количеству монет */
   private computeTier(gold: number): number {
+    if (gold >= 80) return 7;
+    if (gold >= 75) return 6;
+    if (gold >= 60) return 5;
     if (gold >= 45) return 4;
     if (gold >= 30) return 3;
     if (gold >= 15) return 2;
