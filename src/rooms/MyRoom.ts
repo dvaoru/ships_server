@@ -7,6 +7,10 @@ export class MyRoom extends Room<MyRoomState> {
   private mapWidth = 200;
   private mapHeight = 200;
 
+  // ─── Настройки монет ─────────────────────────────────────────────────
+  private droppedCoinMinLifetime = 60000; // Минимальное время жизни выпавшей монеты (мс)
+  private droppedCoinMaxLifetime = 120000; // Максимальное время жизни выпавшей монеты (мс)
+
   // ─── Настройки островов ──────────────────────────────────────────────
   private totalIslands = 10; //10;//20;  // Сколько островов генерировать
   private islandMinRadius = 5; // Минимальный радиус острова (юниты)
@@ -195,8 +199,10 @@ export class MyRoom extends Room<MyRoomState> {
           collectorId: collectorId,
         });
 
-        // Мгновенно спавним новую монету взамен собранной
-        this.spawnCoin(data.coinId);
+        // Мгновенно спавним новую монету взамен собранной (только если это базовая монета)
+        if (!String(data.coinId).startsWith("dropped_")) {
+          this.spawnCoin(data.coinId);
+        }
       }
     });
 
@@ -426,6 +432,14 @@ export class MyRoom extends Room<MyRoomState> {
       coin.x = player.x + (Math.random() * 4 - 2);
       coin.y = player.y + (Math.random() * 4 - 2);
       this.state.coins.set(dropId, coin);
+
+      // Таймер исчезновения: монеты растворяются в случайное время в заданном окне
+      const disappearDelay = this.droppedCoinMinLifetime + Math.random() * (this.droppedCoinMaxLifetime - this.droppedCoinMinLifetime);
+      this.clock.setTimeout(() => {
+        if (this.state.coins.has(dropId)) {
+          this.state.coins.delete(dropId);
+        }
+      }, disappearDelay);
     }
   }
 
