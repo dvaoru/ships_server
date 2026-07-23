@@ -8,9 +8,11 @@ export class MyRoom extends Room<MyRoomState> {
   private mapHeight = 200;
 
   // ─── Настройки монет ─────────────────────────────────────────────────
-  private totalCoins = 300; //Количество монет 
+  private totalCoins = 300; //Количество 
   private droppedCoinMinLifetime = 60000; // Минимальное время жизни выпавшей монеты (мс)
   private droppedCoinMaxLifetime = 120000; // Максимальное время жизни выпавшей монеты (мс)
+  private hotspotRadius = 40; // Радиус золотой зоны (Hotspot) в центре карты
+  private hotspotChance = 0.5; // Шанс (50%), что монета заспавнится в этой зоне
 
   // ─── Настройки островов ──────────────────────────────────────────────
   private totalIslands = 10; //10;//20;  // Сколько островов генерировать
@@ -402,10 +404,22 @@ export class MyRoom extends Room<MyRoomState> {
   /** Спавнит монету в случайном месте, избегая зон островов */
   private spawnCoin(id: string) {
     const maxAttempts = 50;
+    const isHotspot = Math.random() < this.hotspotChance;
 
     for (let i = 0; i < maxAttempts; i++) {
-      const x = Math.floor(Math.random() * this.mapWidth) - this.mapWidth / 2;
-      const y = Math.floor(Math.random() * this.mapHeight) - this.mapHeight / 2;
+      let x: number, y: number;
+
+      if (isHotspot) {
+        // Спавним в радиусе hotspotRadius от центра
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.random() * this.hotspotRadius;
+        x = Math.floor(Math.cos(angle) * r);
+        y = Math.floor(Math.sin(angle) * r);
+      } else {
+        // Обычный спавн по всей карте
+        x = Math.floor(Math.random() * this.mapWidth) - this.mapWidth / 2;
+        y = Math.floor(Math.random() * this.mapHeight) - this.mapHeight / 2;
+      }
 
       if (!this.isInsideIsland(x, y)) {
         const coin = new Coin();
