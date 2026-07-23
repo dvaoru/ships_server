@@ -48,8 +48,14 @@ export class MyRoom extends Room<MyRoomState> {
 
     // 2. Стрелок сообщает о выстреле → сервер рассылает всем
     this.onMessage("fire", (client, data) => {
+      let shooter = client.sessionId;
+      // Если клиент стреляет от лица своего бота
+      if (data.shooterId && data.shooterId.startsWith(`bot_${client.sessionId}`)) {
+        shooter = data.shooterId;
+      }
+      
       this.broadcast("bulletSpawned", {
-        shooterId: client.sessionId,
+        shooterId: shooter,
         originX: data.originX,
         originY: data.originY,
         dirX: data.dirX,
@@ -100,8 +106,13 @@ export class MyRoom extends Room<MyRoomState> {
           if (!targetId.startsWith("bot_")) {
             console.log(`Player destroyed but kept in room: ${targetId}`);
           } else {
-            this.state.players.delete(targetId);
-            console.log(`Bot destroyed: ${targetId}`);
+            console.log(`Bot destroyed, will be removed shortly: ${targetId}`);
+            this.clock.setTimeout(() => {
+              if (this.state.players.has(targetId)) {
+                this.state.players.delete(targetId);
+                console.log(`Bot removed from state: ${targetId}`);
+              }
+            }, 3000);
           }
         } else {
           // HP уронен, но цель выжила
@@ -201,12 +212,12 @@ export class MyRoom extends Room<MyRoomState> {
         return;
       }
 
-      const pos = this.safeSpawnPosition();
       const bot = new Player();
       bot.id = botId;
-      bot.name = "Пират";
-      bot.x = pos.x;
-      bot.y = pos.y;
+      bot.name = data.botName || "Пират";
+      bot.x = data.x !== undefined ? data.x : 0;
+      bot.y = data.y !== undefined ? data.y : 0;
+      bot.angle = data.angle !== undefined ? data.angle : 0;
       bot.hp = 100;
       bot.gold = 0;
       this.state.players.set(botId, bot);
@@ -420,15 +431,12 @@ export class MyRoom extends Room<MyRoomState> {
 
   /** Вычисляет тир корабля по количеству монет */
   private computeTier(gold: number): number {
-    if (gold >= 80) return 7;
-    if (gold >= 75) return 6;
-    if (gold >= 60) return 5;
-    if (gold >= 45) return 4;
-    if (gold >= 30) return 3;
-    if (gold >= 15) return 2;
-    // if (gold >= 150) return 4;
-    // if (gold >= 50)  return 3;
-    // if (gold >= 15)  return 2;
+    if (gold >= 260) return 7;
+    if (gold >= 175) return 6;
+    if (gold >= 110) return 5;
+    if (gold >= 65)  return 4;
+    if (gold >= 35)  return 3;
+    if (gold >= 15)  return 2;
     return 1;
   }
 }
