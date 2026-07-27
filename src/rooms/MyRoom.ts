@@ -1,7 +1,7 @@
 import { Room, Client, CloseCode } from "colyseus";
 import { MyRoomState, Player, Coin, Island } from "./schema/MyRoomState.js";
 
-export class MyRoom extends Room<MyRoomState> {
+export class MyRoom extends Room<{ state: MyRoomState }> {
   maxClients = 15;
 
   private mapWidth = 200;
@@ -26,6 +26,9 @@ export class MyRoom extends Room<MyRoomState> {
     0: 16, // Пример: тип 0 (первый префаб) всегда имеет физический радиус 6
     // 1: 10, // Раскомментируй для фиксации размера других типов
   };
+
+  // ─── Настройки тиров (пороги золота) ─────────────────────────────────
+  private tierThresholds = [0, 15, 35, 65, 110, 175, 260];
 
   onCreate(options: any) {
     // Создаем пустое состояние при старте комнаты
@@ -263,6 +266,9 @@ export class MyRoom extends Room<MyRoomState> {
     player.gold = 0;
 
     this.state.players.set(client.sessionId, player);
+
+    // Отправляем клиенту пороги тиров для кэширования и расчета UI
+    client.send("tierThresholds", this.tierThresholds);
   }
 
   onLeave(client: Client, code: CloseCode) {
@@ -460,12 +466,11 @@ export class MyRoom extends Room<MyRoomState> {
 
   /** Вычисляет тир корабля по количеству монет */
   private computeTier(gold: number): number {
-    if (gold >= 260) return 7;
-    if (gold >= 175) return 6;
-    if (gold >= 110) return 5;
-    if (gold >= 65) return 4;
-    if (gold >= 35) return 3;
-    if (gold >= 15) return 2;
+    for (let i = this.tierThresholds.length - 1; i >= 1; i--) {
+      if (gold >= this.tierThresholds[i]) {
+        return i + 1;
+      }
+    }
     return 1;
   }
 }
