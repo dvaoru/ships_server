@@ -271,13 +271,18 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
     client.send("tierThresholds", this.tierThresholds);
   }
 
-  onLeave(client: Client, code: CloseCode) {
+  async onLeave(client: Client, code: CloseCode) {
+    // Намеренно НЕ вызываем allowReconnection() — переподключение не поддерживается.
+    // В Colyseus 0.17 async onLeave без allowReconnection означает немедленное удаление:
+    // игрок и его боты исчезают с карты у всех клиентов без задержки.
+
     const player = this.state.players.get(client.sessionId);
     if (player) {
       if (player.gold > 0) {
         this.dropGoldOnDeath(player);
       }
       this.state.players.delete(client.sessionId);
+      console.log(`Player removed on leave: ${client.sessionId} (code: ${code})`);
     }
 
     // Удаляем всех ботов этого клиента
