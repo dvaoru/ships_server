@@ -30,6 +30,8 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
   // ─── Настройки тиров (пороги золота) ─────────────────────────────────
   private tierThresholds = [0, 15, 35, 65, 110, 175, 260];
 
+  private savedProgress = new Map<string, { gold: number; tier: number }>();
+
   onCreate(options: any) {
     // Создаем пустое состояние при старте комнаты
     var myState = new MyRoomState();
@@ -105,6 +107,9 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
               `[RAM] Player rammed to death: ${targetId} (rammer: ${client.sessionId})`,
             );
           }
+          // Сохраняем прогресс перед обнулением золота на случай воскрешения («Последний шанс»)
+          this.savedProgress.set(targetId, { gold: target.gold, tier: target.tier });
+
           // Высыпаем монеты погибшего (если не VOID)
           if (data.shooterId !== "VOID") {
             this.dropGoldOnDeath(target);
@@ -136,7 +141,7 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
     });
 
     // Обработка возрождения игрока
-    this.onMessage("respawn", (client) => {
+    this.onMessage("respawn", (client, data?: { keepProgress?: boolean }) => {
       const player = this.state.players.get(client.sessionId);
       if (player && player.hp <= 0) {
         // Новые случайные координаты — вне зон островов
@@ -145,11 +150,18 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
         player.y = pos.y;
         player.hp = 100;
 
-        // При возрождении сбрасываем золото и тир к начальным значениям
-        player.gold = 0;
-        player.tier = 1;
+        const saved = this.savedProgress.get(client.sessionId);
+        if (data?.keepProgress && saved) {
+          player.gold = saved.gold;
+          player.tier = saved.tier;
+        } else {
+          // При обычном возрождении сбрасываем золото и тир к начальным значениям
+          player.gold = 0;
+          player.tier = 1;
+        }
+        this.savedProgress.delete(client.sessionId);
 
-        console.log(`Player respawned: ${client.sessionId}`);
+        console.log(`Player respawned: ${client.sessionId}, keepProgress: ${data?.keepProgress}`);
       }
     });
 
@@ -277,6 +289,7 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
     // игрок и его боты исчезают с карты у всех клиентов без задержки.
 
     const player = this.state.players.get(client.sessionId);
+    this.savedProgress.delete(client.sessionId);
     if (player) {
       if (player.gold > 0) {
         this.dropGoldOnDeath(player);
