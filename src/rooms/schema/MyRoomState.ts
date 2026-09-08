@@ -21,7 +21,7 @@ export class Player extends Schema {
     @type("number") hp: number = 100;
     @type("number") gold: number = 0;
     @type("int8")   tier: number = 1;
-    
+    @type("number") kills: number = 0;
 }
 
 // Класс монетки

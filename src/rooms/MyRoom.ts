@@ -99,6 +99,16 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
         if (target.hp < 0) target.hp = 0;
         if (target.hp <= 0) {
           target.hp = 0;
+          
+          // Увеличиваем счетчик убитых врагов стрелку
+          if (data.shooterId && data.shooterId !== "VOID" && data.shooterId !== "RAM_SELF" && data.shooterId !== targetId) {
+            const shooter = this.state.players.get(data.shooterId);
+            if (shooter) {
+              shooter.kills += 1;
+              console.log(`[KILLS] Player ${data.shooterId} killed ${targetId}. Total kills: ${shooter.kills}`);
+            }
+          }
+
           // Логируем тип смерти
           if (data.shooterId === "RAM_SELF") {
             console.log(`[RAM] Player rammed and sank: ${targetId}`);
