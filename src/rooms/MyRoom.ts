@@ -234,6 +234,18 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
       }
     });
 
+    // 4.1 Отладочное добавление золота (для тестирования тиров)
+    this.onMessage("debugAddGold", (client, data: { collectorId?: string; amount?: number }) => {
+      const collectorId = data?.collectorId ?? client.sessionId;
+      const collector = this.state.players.get(collectorId);
+      if (collector) {
+        const amount = Number(data?.amount ?? 15);
+        collector.gold = Math.max(0, collector.gold + amount);
+        collector.tier = this.computeTier(collector.gold);
+        console.log(`[Debug Gold] ${collectorId} gold=${collector.gold}, tier=${collector.tier}`);
+      }
+    });
+
     // 5. Регистрация бота от клиента-владельца
     this.onMessage("spawnBot", (client, data) => {
       const botId: string = data.botId;
