@@ -1,5 +1,5 @@
 import { Room, Client, CloseCode } from "colyseus";
-import { MyRoomState, Player, Coin, Island } from "./schema/MyRoomState.js";
+import { MyRoomState, Player, Coin, Pickup, Island } from "./schema/MyRoomState.js";
 
 export class MyRoom extends Room<{ state: MyRoomState }> {
   maxClients = 15;
@@ -7,12 +7,17 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
   private mapWidth = 200;
   private mapHeight = 200;
 
-  // ─── Настройки монет ─────────────────────────────────────────────────
+  // ─── Настройки монет ───────────────────────────────────────────────────
   private totalCoins = 400; //Количество 
   private droppedCoinMinLifetime = 60000; // Минимальное время жизни выпавшей монеты (мс)
   private droppedCoinMaxLifetime = 120000; // Максимальное время жизни выпавшей монеты (мс)
   private hotspotRadius = 40; // Радиус золотой зоны (Hotspot) в центре карты
   private hotspotChance = 0.2; // Шанс (20%), что монета заспавнится в этой зоне
+
+  // ─── Настройки pickup-объектов ────────────────────────────────────────
+  private totalPickups = 100;           // Количество пикапов на карте одновременно
+  private pickupRespawnDelay = 20000;   // Задержка перед появлением нового пикапа (мс)
+  private pickupTypes = ["speed", "repair", "shield", "freeze", "firerate"];
 
   // ─── Настройки островов ──────────────────────────────────────────────
   private totalIslands = 10; //10;//20;  // Сколько островов генерировать
@@ -46,6 +51,11 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
     // Спавним стартовые 300 монет на случайных координатах
     for (let i = 0; i < this.totalCoins; i++) {
       this.spawnCoin(i.toString());
+    }
+
+    // Спавним начальные пикапы
+    for (let i = 0; i < this.totalPickups; i++) {
+      this.spawnPickup(`pickup_${i}`);
     }
 
     // 1. Принимаем координаты от Unity (15 раз в секунду)
@@ -231,6 +241,29 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
         if (!String(data.coinId).startsWith("dropped_")) {
           this.spawnCoin(data.coinId);
         }
+      }
+    });
+
+    // 4.5. Принимаем сбор пикапа (кто первый прислал — тот и забрал)
+    this.onMessage("collectPickup", (client, data) => {
+      if (this.state.pickups.has(data.pickupId)) {
+        const pickup = this.state.pickups.get(data.pickupId)!;
+        const pickupType = pickup.type;
+        this.state.pickups.delete(data.pickupId);
+
+        const collectorId = data.collectorId ?? client.sessionId;
+
+        // Рассылаем всем информацию о том, кто собрал пикап (для анимации и эффекта)
+        this.broadcast("pickupCollected", {
+          pickupId: data.pickupId,
+          collectorId: collectorId,
+          pickupType: pickupType,
+        });
+
+        // Респавн через задержку на тож е ID
+        this.clock.setTimeout(() => {
+          this.spawnPickup(data.pickupId);
+        }, this.pickupRespawnDelay);
       }
     });
 
@@ -512,5 +545,34 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
       }
     }
     return 1;
+  }
+
+  // ─── Pickup-объекты ──────────────────────────────────────────────────────
+
+  /** Спавнит pickup в случайном месте, избегая зон островов. Тип выбирается случайно. */
+  private spawnPickup(id: string) {
+    const maxAttempts = 50;
+    const pickupType = this.pickupTypes[Math.floor(Math.random() * this.pickupTypes.length)];
+
+    for (let i = 0; i < maxAttempts; i++) {
+      const x = Math.floor(Math.random() * this.mapWidth)  - this.mapWidth  / 2;
+      const y = Math.floor(Math.random() * this.mapHeight) - this.mapHeight / 2;
+
+      if (!this.isInsideIsland(x, y)) {
+        const pickup = new Pickup();
+        pickup.x    = x;
+        pickup.y    = y;
+        pickup.type = pickupType;
+        this.state.pickups.set(id, pickup);
+        return;
+      }
+    }
+
+    // Фолбэк: спавним в центре карты
+    const pickup = new Pickup();
+    pickup.x    = 0;
+    pickup.y    = 0;
+    pickup.type = pickupType;
+    this.state.pickups.set(id, pickup);
   }
 }
