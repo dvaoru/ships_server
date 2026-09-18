@@ -17,7 +17,7 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
   // ─── Настройки pickup-объектов ────────────────────────────────────────
   private totalPickups = 100;           // Количество пикапов на карте одновременно
   private pickupRespawnDelay = 20000;   // Задержка перед появлением нового пикапа (мс)
-  private pickupTypes = ["speed", "repair", "shield", "freeze", "firerate"];
+  private pickupTypes = ["speed", "repair", "shield", "freeze", "firerate", "spyglass"];
 
   // ─── Настройки островов ──────────────────────────────────────────────
   private totalIslands = 10; //10;//20;  // Сколько островов генерировать
