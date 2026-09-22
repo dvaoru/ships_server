@@ -34,7 +34,7 @@ export class Coin extends Schema {
 export class Pickup extends Schema {
     @type("float32") x: number = 0;
     @type("float32") y: number = 0;
-    @type("string")  type: string = "speed"; // "speed" | "repair" | "shield" | "freeze" | "firerate"
+    @type("string")  type: string = "speed"; // "speed" | "repair" | "shield" | "freeze" | "firerate" | "spyglass" | "dynamite"
 }
 
 // Класс острова

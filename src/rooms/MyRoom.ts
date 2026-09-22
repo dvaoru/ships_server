@@ -17,7 +17,7 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
   // ─── Настройки pickup-объектов ────────────────────────────────────────
   private totalPickups = 100;           // Количество пикапов на карте одновременно
   private pickupRespawnDelay = 20000;   // Задержка перед появлением нового пикапа (мс)
-  private pickupTypes = ["speed", "repair", "shield", "freeze", "firerate", "spyglass"];
+  private pickupTypes = ["speed", "repair", "shield", "freeze", "firerate", "spyglass", "dynamite"];
 
   // ─── Настройки островов ──────────────────────────────────────────────
   private totalIslands = 10; //10;//20;  // Сколько островов генерировать
@@ -85,6 +85,26 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
         speed: data.speed,
         maxRange: data.maxRange,
         damage: data.damage,
+      });
+    });
+
+    // 2.5. Сброс морской мины (динамита) → сервер рассылает всем
+    this.onMessage("dropMine", (client, data) => {
+      let owner = client.sessionId;
+      if (data.ownerId && data.ownerId.startsWith(`bot_${client.sessionId}`)) {
+        owner = data.ownerId;
+      }
+
+      this.broadcast("mineSpawned", {
+        mineId: data.mineId || `mine_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        ownerId: owner,
+        posX: data.posX,
+        posZ: data.posZ,
+        damage: data.damage ?? 40,
+        explosionRadius: data.explosionRadius ?? 5.5,
+        triggerRadius: data.triggerRadius ?? 2.0,
+        armingDelay: data.armingDelay ?? 0.8,
+        lifetime: data.lifetime ?? 15.0,
       });
     });
 
