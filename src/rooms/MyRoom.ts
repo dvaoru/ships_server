@@ -37,6 +37,12 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
 
   private savedProgress = new Map<string, { gold: number; tier: number }>();
 
+  // ─── AFK-детекция ───────────────────────────────────────────────────
+  private afkKillMs = 10000;   // 10 сек тишины → «убить» игрока (hp=0)
+  private afkRemoveMs = 30000; // 30 сек тишины → полностью удалить сессию + ботов
+  private lastSeen = new Map<string, number>(); // sessionId → ts последнего updatePosition
+  private afkKilled = new Set<string>();        // кого убили за AFK (только их чистим)
+
   onCreate(options: any) {
     // Создаем пустое состояние при старте комнаты
     var myState = new MyRoomState();
@@ -60,6 +66,7 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
 
     // 1. Принимаем координаты от Unity (15 раз в секунду)
     this.onMessage("updatePosition", (client, data) => {
+      this.lastSeen.set(client.sessionId, Date.now());
       const player = this.state.players.get(client.sessionId);
       if (player) {
         player.x = data.x;
@@ -200,6 +207,7 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
           player.tier = 1;
         }
         this.savedProgress.delete(client.sessionId);
+        this.afkKilled.delete(client.sessionId);
 
         console.log(`Player respawned: ${client.sessionId}, keepProgress: ${data?.keepProgress}`);
       }
@@ -334,6 +342,9 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
       bot.y = data.z; // сервер использует y как z-координату
       bot.angle = data.angle;
     });
+
+    // 7. AFK-детекция: раз в секунду проверяем, не перестал ли клиент слать позицию
+    this.clock.setInterval(() => this.checkAfk(), 1000);
   }
 
   update(deltaTime: number) {
@@ -353,6 +364,7 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
     player.gold = 0;
 
     this.state.players.set(client.sessionId, player);
+    this.lastSeen.set(client.sessionId, Date.now());
 
     // Отправляем клиенту пороги тиров для кэширования и расчета UI
     client.send("tierThresholds", this.tierThresholds);
@@ -365,6 +377,8 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
 
     const player = this.state.players.get(client.sessionId);
     this.savedProgress.delete(client.sessionId);
+    this.lastSeen.delete(client.sessionId);
+    this.afkKilled.delete(client.sessionId);
     if (player) {
       if (player.gold > 0) {
         this.dropGoldOnDeath(player);
@@ -374,15 +388,10 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
     }
 
     // Удаляем всех ботов этого клиента
-    const botPrefix = `bot_${client.sessionId}`;
-    const botIds: string[] = [];
-    this.state.players.forEach((_player: Player, id: string) => {
-      if (id.startsWith(botPrefix)) botIds.push(id);
-    });
-    botIds.forEach((id) => {
-      this.state.players.delete(id);
-      console.log(`Bot removed: ${id} (owner left: ${client.sessionId})`);
-    });
+    const removedBots = this.removeOwnerBots(client.sessionId);
+    if (removedBots > 0) {
+      console.log(`Removed ${removedBots} bots of left owner: ${client.sessionId}`);
+    }
   }
 
   onDispose() {
@@ -565,6 +574,79 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
       }
     }
     return 1;
+  }
+
+  /** «Убивает» игрока за бездействие: hp=0 → экран поражения у всех + выпадение золота. */
+  private killByAfk(sessionId: string) {
+    const player = this.state.players.get(sessionId);
+    if (!player || player.hp <= 0) return;
+
+    player.hp = 0;
+    // Сохраняем прогресс для «Последнего шанса» (как при обычной смерти)
+    this.savedProgress.set(sessionId, { gold: player.gold, tier: player.tier });
+    // Высыпаем монеты (50%) и обнуляем золото
+    if (player.gold > 0) {
+      this.dropGoldOnDeath(player);
+    }
+    player.gold = 0;
+    // tier не сбрасываем — корабль тонет в текущей модели, сброс произойдёт при респавне.
+  }
+
+  // ─── AFK-детекция ───────────────────────────────────────────────────
+
+  /** Раз в секунду проверяет, не перестал ли клиент слать позицию (свёрнутая вкладка/зависание). */
+  private checkAfk() {
+    const now = Date.now();
+    for (const [sessionId, ts] of this.lastSeen) {
+      const player = this.state.players.get(sessionId);
+      if (!player) {
+        this.lastSeen.delete(sessionId);
+        continue;
+      }
+
+      const silence = now - ts;
+
+      // Фаза 1: молчание дольше порога → «убиваем» игрока и убираем его ботов
+      if (player.hp > 0 && silence > this.afkKillMs) {
+        this.killByAfk(sessionId);
+        this.removeOwnerBots(sessionId);
+        this.afkKilled.add(sessionId);
+        console.log(`[AFK] Player ${sessionId} killed after ${Math.round(silence / 1000)}s of inactivity`);
+      }
+
+      // Фаза 2: AFK-убитый всё ещё молчит → полностью удаляем сессию (освобождаем слот)
+      if (this.afkKilled.has(sessionId) && silence > this.afkRemoveMs) {
+        this.removeSession(sessionId);
+        this.lastSeen.delete(sessionId);
+        this.afkKilled.delete(sessionId);
+        console.log(`[AFK] Player ${sessionId} session removed (cleanup)`);
+      }
+    }
+  }
+
+  /** Удаляет всех ботов указанного владельца. Возвращает количество удалённых. */
+  private removeOwnerBots(sessionId: string): number {
+    const botPrefix = `bot_${sessionId}`;
+    const botIds: string[] = [];
+    this.state.players.forEach((_player: Player, id: string) => {
+      if (id.startsWith(botPrefix)) botIds.push(id);
+    });
+    botIds.forEach((id) => this.state.players.delete(id));
+    return botIds.length;
+  }
+
+  /** Полное удаление сессии: игрок + боты + штатный дисконнект (код 4000). */
+  private removeSession(sessionId: string) {
+    const player = this.state.players.get(sessionId);
+    if (player) {
+      if (player.gold > 0) {
+        this.dropGoldOnDeath(player);
+      }
+      this.state.players.delete(sessionId);
+    }
+    this.savedProgress.delete(sessionId);
+    this.removeOwnerBots(sessionId);
+    this.clients.getById(sessionId)?.leave(CloseCode.CONSENTED);
   }
 
   // ─── Pickup-объекты ──────────────────────────────────────────────────────
