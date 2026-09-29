@@ -322,6 +322,8 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
       const bot = new Player();
       bot.id = botId;
       bot.name = data.botName || "Пират";
+      // Боты остаются на обычном наборе, если владелец не попросил иначе
+      bot.fleet = this.sanitizeFleet(data?.fleet);
       bot.x = data.x !== undefined ? data.x : 0;
       bot.y = data.y !== undefined ? data.y : 0;
       bot.angle = data.angle !== undefined ? data.angle : 0;
@@ -355,6 +357,7 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
     const player = new Player();
     player.id = client.sessionId;
     player.name = options.name || "Гроза Морей";
+    player.fleet = this.sanitizeFleet(options?.fleet);
 
     // Спавним вне зон островов
     const pos = this.safeSpawnPosition();
@@ -396,6 +399,19 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
 
   onDispose() {
     console.log("room", this.roomId, "disposing...");
+  }
+
+  // ─── Наборы кораблей ──────────────────────────────────────────────────
+
+  /**
+   * Проверяет id набора моделей флота. Белого списка нет намеренно: новые фракции
+   * добавляются на клиенте без выката сервера, а неизвестный клиенту id он сам
+   * подменяет набором по умолчанию. Здесь только защита от мусора в состоянии.
+   */
+  private sanitizeFleet(value: any): string {
+    return typeof value === "string" && /^[a-z][a-z0-9_]{0,31}$/.test(value)
+      ? value
+      : "default";
   }
 
   // ─── Острова ──────────────────────────────────────────────────────────

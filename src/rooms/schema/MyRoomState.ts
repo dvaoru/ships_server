@@ -22,6 +22,9 @@ export class Player extends Schema {
     @type("number") gold: number = 0;
     @type("int8")   tier: number = 1;
     @type("number") kills: number = 0;
+    // Выбранный игроком набор моделей флота ("default" | "viking").
+    // Чисто визуальный стиль: статы и прогрессия тиров от него не зависят.
+    @type("string") fleet: string = "default";
 }
 
 // Класс монетки
