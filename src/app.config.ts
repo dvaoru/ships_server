@@ -12,6 +12,7 @@ import {
  */
 import { MyRoom } from "./rooms/MyRoom.js";
 import { leaderboardService } from "./leaderboard.js";
+import express from "express";
 
 const server = defineServer({
     /**
@@ -41,6 +42,9 @@ const server = defineServer({
     express: (app) => {
         // ─── Инициализация БД лидерборда ─────────────────────────────────────
         leaderboardService.load();
+
+        // ─── Парсинг JSON-тела POST-запросов ─────────────────────────────────
+        app.use(express.json());
 
         // ─── CORS: разрешаем запросы с WebGL-сборки itch.io / Яндекс.Игр ────
         app.use("/api/leaderboard", (req, res, next) => {
