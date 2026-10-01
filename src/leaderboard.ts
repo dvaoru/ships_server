@@ -193,6 +193,48 @@ export class LeaderboardService {
 
         return { entries, currentPlayer };
     }
+
+    // ─── Методы для панели администратора ─────────────────────────────────────
+
+    /** Возвращает все записи доски для админки (включая player_id и дату) */
+    getAllEntries(boardKey: string): Array<{ rank: number; playerId: string; name: string; score: number; updatedAt: number }> {
+        const rows = this.db.prepare(`
+            SELECT player_id, player_name, score, updated_at
+            FROM leaderboard
+            WHERE board_key = ?
+            ORDER BY score DESC
+        `).all(boardKey) as Array<{ player_id: string; player_name: string; score: number; updated_at: number }>;
+
+        return rows.map((row, index) => ({
+            rank: index + 1,
+            playerId: row.player_id,
+            name: row.player_name,
+            score: row.score,
+            updatedAt: row.updated_at
+        }));
+    }
+
+    /** Удаляет запись конкретного игрока с доски */
+    deleteEntry(boardKey: string, playerId: string): boolean {
+        if (!boardKey || !playerId) return false;
+        const res = this.db.prepare(`
+            DELETE FROM leaderboard
+            WHERE board_key = ? AND player_id = ?
+        `).run(boardKey, playerId);
+        return res.changes > 0;
+    }
+
+    /** Переименовывает ник игрока (например, если рекорд честный, а ник неприемлемый) */
+    renameEntry(boardKey: string, playerId: string, newName: string): boolean {
+        if (!boardKey || !playerId) return false;
+        const sanitized = this.sanitizePlayerName(newName);
+        const res = this.db.prepare(`
+            UPDATE leaderboard
+            SET player_name = ?
+            WHERE board_key = ? AND player_id = ?
+        `).run(sanitized, boardKey, playerId);
+        return res.changes > 0;
+    }
 }
 
 // ─── Синглтон ────────────────────────────────────────────────────────────────
