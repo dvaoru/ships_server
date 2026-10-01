@@ -196,22 +196,49 @@ export class LeaderboardService {
 
     // ─── Методы для панели администратора ─────────────────────────────────────
 
-    /** Возвращает все записи доски для админки (включая player_id и дату) */
-    getAllEntries(boardKey: string): Array<{ rank: number; playerId: string; name: string; score: number; updatedAt: number }> {
+    /**
+     * Возвращает страницу записей доски для админки (включая player_id и дату).
+     * Пагинация через LIMIT/OFFSET (индекс idx_lb_board_score делает её дешёвой даже на больших таблицах),
+     * опциональный поиск по нику. rank — сквозной, с учётом offset.
+     */
+    getAllEntries(
+        boardKey: string,
+        limit = 100,
+        offset = 0,
+        search = ""
+    ): { entries: Array<{ rank: number; playerId: string; name: string; score: number; updatedAt: number }>; total: number } {
+        const term = search.trim();
+        const hasSearch = term.length > 0;
+
+        // Экранируем спецсимволы LIKE (! — escape-символ), чтобы % и _ искались буквально
+        const like = "%" + term.replace(/[%_!]/g, "!$&") + "%";
+
+        const whereClause = hasSearch
+            ? "board_key = ? AND player_name LIKE ? ESCAPE '!'"
+            : "board_key = ?";
+        const whereArgs: unknown[] = hasSearch ? [boardKey, like] : [boardKey];
+
+        const totalRow = this.db.prepare(
+            `SELECT COUNT(*) AS cnt FROM leaderboard WHERE ${whereClause}`
+        ).get(...whereArgs) as { cnt: number };
+
         const rows = this.db.prepare(`
             SELECT player_id, player_name, score, updated_at
             FROM leaderboard
-            WHERE board_key = ?
+            WHERE ${whereClause}
             ORDER BY score DESC
-        `).all(boardKey) as Array<{ player_id: string; player_name: string; score: number; updated_at: number }>;
+            LIMIT ? OFFSET ?
+        `).all(...whereArgs, limit, offset) as Array<{ player_id: string; player_name: string; score: number; updated_at: number }>;
 
-        return rows.map((row, index) => ({
-            rank: index + 1,
+        const entries = rows.map((row, index) => ({
+            rank: offset + index + 1,
             playerId: row.player_id,
             name: row.player_name,
             score: row.score,
             updatedAt: row.updated_at
         }));
+
+        return { entries, total: totalRow.cnt };
     }
 
     /** Удаляет запись конкретного игрока с доски */

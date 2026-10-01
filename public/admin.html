@@ -30,6 +30,7 @@
     button.btn-rename { background: #6366f1; }
     button.btn-secondary { background: #374151; }
     .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+    .toolbar { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
     .tab-btn { background: #1e293b; color: var(--text-muted); }
     .tab-btn.active { background: var(--accent); color: #fff; }
     table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; }
@@ -71,6 +72,13 @@
       <button class="btn-secondary" style="margin-left:auto;" onclick="loadData()">↻ Обновить</button>
     </div>
 
+    <div class="toolbar">
+      <input type="search" id="search-input" placeholder="Поиск по нику..." style="flex:1; min-width:160px;">
+      <button class="btn-secondary" id="prev-btn" onclick="prevPage()">‹ Назад</button>
+      <span id="page-info" style="color:var(--text-muted); font-size:13px; white-space:nowrap;">Стр. 1</span>
+      <button class="btn-secondary" id="next-btn" onclick="nextPage()">Вперёд ›</button>
+    </div>
+
     <div id="status" class="status-msg"></div>
 
     <div style="overflow-x:auto;">
@@ -97,8 +105,14 @@
   let currentBoard = "gold";
   let adminPassword = localStorage.getItem("ships_admin_key") || "";
 
+  // ─── Пагинация и поиск ──────────────────────────────────────────────────
+  const PAGE_SIZE = 100;
+  let offset = 0;
+  let total = 0;
+  let searchTerm = "";
+
   // Вычисляем базовый путь API от текущего URL страницы
-  const basePath = window.location.pathname.replace(/\/admin\/leaderboard\/?$/, "");
+  const basePath = window.location.pathname.split("/admin/leaderboard")[0];
   const apiBase = (basePath ? basePath : "") + "/api/admin/leaderboard";
 
   if (adminPassword) {
@@ -106,10 +120,27 @@
     checkAuth();
   }
 
-  // Поддержка нажатия клавиши Enter в поле ввода
+  // Поддержка нажатия клавиши Enter в поле ввода пароля
   document.getElementById("admin-pass").addEventListener("keydown", function(e) {
     if (e.key === "Enter") savePassword();
   });
+
+  // Поиск по нику с дебаунсом, чтобы не дёргать сервер на каждый символ
+  let searchDebounce = null;
+  document.getElementById("search-input").addEventListener("input", function(e) {
+    searchTerm = e.target.value.trim();
+    if (searchDebounce) clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(function() { offset = 0; loadData(); }, 300);
+  });
+
+  // Единый конструктор query-строки для всех запросов к админскому API
+  function buildQuery() {
+    return "?boardKey=" + encodeURIComponent(currentBoard) +
+           "&limit=" + PAGE_SIZE +
+           "&offset=" + offset +
+           "&search=" + encodeURIComponent(searchTerm) +
+           "&adminKey=" + encodeURIComponent(adminPassword);
+  }
 
   function savePassword() {
     adminPassword = document.getElementById("admin-pass").value.trim();
@@ -133,8 +164,7 @@
 
   async function checkAuth() {
     try {
-      const url = apiBase + "?boardKey=" + currentBoard + "&adminKey=" + encodeURIComponent(adminPassword);
-      const res = await fetch(url, {
+      const res = await fetch(apiBase + buildQuery(), {
         headers: { "x-admin-key": adminPassword }
       });
       if (res.ok) {
@@ -157,19 +187,53 @@
 
   function switchTab(board) {
     currentBoard = board;
+    offset = 0;
     document.getElementById("tab-gold").classList.toggle("active", board === "gold");
     document.getElementById("tab-kills").classList.toggle("active", board === "kills");
     loadData();
   }
 
+  function prevPage() {
+    if (offset <= 0) return;
+    offset = Math.max(offset - PAGE_SIZE, 0);
+    loadData();
+  }
+
+  function nextPage() {
+    if (offset + PAGE_SIZE >= total) return;
+    offset += PAGE_SIZE;
+    loadData();
+  }
+
+  function updatePager() {
+    const pages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
+    const page  = Math.floor(offset / PAGE_SIZE) + 1;
+    const from  = total === 0 ? 0 : offset + 1;
+    const to    = Math.min(offset + PAGE_SIZE, total);
+
+    document.getElementById("page-info").textContent =
+      "Стр. " + page + " из " + pages + " · " + from + "–" + to + " (всего " + total + ")";
+    document.getElementById("prev-btn").disabled = offset <= 0;
+    document.getElementById("next-btn").disabled = offset + PAGE_SIZE >= total;
+  }
+
   async function loadData() {
     const tbody = document.getElementById("table-body");
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Загрузка данных...</td></tr>';
+
+    // Заглушка «загрузка» без перерисовки всей таблицы
+    tbody.replaceChildren();
+    const loadingRow = document.createElement("tr");
+    const loadingCell = document.createElement("td");
+    loadingCell.colSpan = 6;
+    loadingCell.style.textAlign = "center";
+    loadingCell.style.color = "var(--text-muted)";
+    loadingCell.textContent = "Загрузка данных...";
+    loadingRow.appendChild(loadingCell);
+    tbody.appendChild(loadingRow);
     setStatus("");
 
     try {
-      const url = apiBase + "?boardKey=" + currentBoard + "&adminKey=" + encodeURIComponent(adminPassword);
-      const res = await fetch(url, {
+      const res = await fetch(apiBase + buildQuery(), {
         headers: { "x-admin-key": adminPassword }
       });
       const data = await res.json();
@@ -179,30 +243,94 @@
         return;
       }
 
+      total = data.total || 0;
+      updatePager();
+
+      tbody.replaceChildren();
+
       if (!data.entries || data.entries.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Таблица лидеров пуста</td></tr>';
+        const emptyRow = document.createElement("tr");
+        const emptyCell = document.createElement("td");
+        emptyCell.colSpan = 6;
+        emptyCell.style.textAlign = "center";
+        emptyCell.style.color = "var(--text-muted)";
+        emptyCell.textContent = searchTerm ? "Ничего не найдено" : "Таблица лидеров пуста";
+        emptyRow.appendChild(emptyCell);
+        tbody.appendChild(emptyRow);
         return;
       }
 
-      tbody.innerHTML = data.entries.map(function(e) {
-        return '<tr>' +
-          '<td><strong>' + e.rank + '</strong></td>' +
-          '<td>' + escapeHtml(e.name) + '</td>' +
-          '<td><span class="badge" style="color:#fbbf24; font-weight:bold;">' + e.score + '</span></td>' +
-          '<td class="hide-mobile"><span class="player-id">' + escapeHtml(e.playerId) + '</span></td>' +
-          '<td class="hide-mobile" style="color:var(--text-muted); font-size:12px;">' + new Date(e.updatedAt * 1000).toLocaleString('ru-RU') + '</td>' +
-          '<td>' +
-            '<div class="actions">' +
-              '<button class="btn-rename" onclick="renamePlayer(\'' + escapeHtml(e.playerId) + '\', \'' + escapeHtml(e.name) + '\')">Имя</button>' +
-              '<button class="btn-danger" onclick="deletePlayer(\'' + escapeHtml(e.playerId) + '\', \'' + escapeHtml(e.name) + '\')">Удалить</button>' +
-            '</div>' +
-          '</td>' +
-        '</tr>';
-      }).join("");
+      // Строки собираем во фрагмент: одна вставка в DOM вместо конкатенации HTML
+      const fragment = document.createDocumentFragment();
+      for (const entry of data.entries) {
+        fragment.appendChild(buildRow(entry));
+      }
+      tbody.appendChild(fragment);
 
     } catch (err) {
       setStatus("Ошибка сети: " + err.message, true);
     }
+  }
+
+  // Собирает одну строку таблицы через DOM API (без innerHTML и inline-обработчиков —
+  // так данные игрока не могут внедрить разметку/скрипт)
+  function buildRow(entry) {
+    const tr = document.createElement("tr");
+
+    const rankCell = document.createElement("td");
+    const rankStrong = document.createElement("strong");
+    rankStrong.textContent = entry.rank;
+    rankCell.appendChild(rankStrong);
+    tr.appendChild(rankCell);
+
+    const nameCell = document.createElement("td");
+    nameCell.textContent = entry.name;
+    tr.appendChild(nameCell);
+
+    const scoreCell = document.createElement("td");
+    const scoreBadge = document.createElement("span");
+    scoreBadge.className = "badge";
+    scoreBadge.style.color = "#fbbf24";
+    scoreBadge.style.fontWeight = "bold";
+    scoreBadge.textContent = entry.score;
+    scoreCell.appendChild(scoreBadge);
+    tr.appendChild(scoreCell);
+
+    const idCell = document.createElement("td");
+    idCell.className = "hide-mobile";
+    const idSpan = document.createElement("span");
+    idSpan.className = "player-id";
+    idSpan.textContent = entry.playerId;
+    idCell.appendChild(idSpan);
+    tr.appendChild(idCell);
+
+    const dateCell = document.createElement("td");
+    dateCell.className = "hide-mobile";
+    dateCell.style.color = "var(--text-muted)";
+    dateCell.style.fontSize = "12px";
+    dateCell.textContent = new Date(entry.updatedAt * 1000).toLocaleString("ru-RU");
+    tr.appendChild(dateCell);
+
+    const actionsCell = document.createElement("td");
+    const actions = document.createElement("div");
+    actions.className = "actions";
+
+    const renameBtn = document.createElement("button");
+    renameBtn.className = "btn-rename";
+    renameBtn.textContent = "Имя";
+    renameBtn.addEventListener("click", function() { renamePlayer(entry.playerId, entry.name); });
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "btn-danger";
+    deleteBtn.textContent = "Удалить";
+    deleteBtn.addEventListener("click", function() { deletePlayer(entry.playerId, entry.name); });
+
+    actions.appendChild(renameBtn);
+    actions.appendChild(deleteBtn);
+    actionsCell.appendChild(actions);
+    tr.appendChild(actionsCell);
+
+    return tr;
   }
 
   async function deletePlayer(playerId, name) {
@@ -252,12 +380,6 @@
     const el = document.getElementById("status");
     el.textContent = msg;
     el.className = "status-msg " + (isError ? "status-err" : "status-ok");
-  }
-
-  function escapeHtml(text) {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
   }
 </script>
 </body>

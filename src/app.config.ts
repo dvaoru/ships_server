@@ -85,6 +85,28 @@ const server = defineServer({
             rateLimitMap.forEach((v, k) => { if (now > v.resetAt) rateLimitMap.delete(k); });
         }, 300_000);
 
+        // ─── Отдельный rate limiter для админских эндпоинтов ─────────────────
+        // Щедрее публичного (10/мин): админ листает страницы и ищет — обычный лимит сломал бы UX.
+        const adminRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+        function checkAdminRateLimit(ip: string): boolean {
+            const now   = Date.now();
+            const entry = adminRateLimitMap.get(ip);
+
+            if (!entry || now > entry.resetAt) {
+                adminRateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 });
+                return true;
+            }
+            if (entry.count >= 120) return false;
+            entry.count++;
+            return true;
+        }
+
+        setInterval(() => {
+            const now = Date.now();
+            adminRateLimitMap.forEach((v, k) => { if (now > v.resetAt) adminRateLimitMap.delete(k); });
+        }, 300_000);
+
         /**
          * POST /api/leaderboard/submit
          * Body: { boardKey: string, playerId: string, playerName: string, score: number }
@@ -155,15 +177,37 @@ const server = defineServer({
             next();
         };
 
-        /** GET /api/admin/leaderboard — список всех записей для админки */
-        app.get("/api/admin/leaderboard", checkAdminAuth, (req, res) => {
-            const boardKey = String(req.query.boardKey || "gold");
-            if (!ALLOWED_BOARDS.has(boardKey)) {
-                res.status(400).json({ error: "Недопустимая доска" });
-                return;
+        /**
+         * GET /api/admin/leaderboard?boardKey=gold&limit=100&offset=0&search=
+         * Страница записей доски для админки + общее число строк (для пагинации).
+         */
+        app.get(
+            "/api/admin/leaderboard",
+            (req, res, next) => {
+                const ip = (req.headers["x-forwarded-for"] as string ?? req.socket.remoteAddress ?? "").split(",")[0].trim();
+                if (!checkAdminRateLimit(ip)) {
+                    res.status(429).json({ error: "Слишком много запросов — попробуй через минуту" });
+                    return;
+                }
+                next();
+            },
+            checkAdminAuth,
+            (req, res) => {
+                const boardKey = String(req.query.boardKey || "gold");
+                if (!ALLOWED_BOARDS.has(boardKey)) {
+                    res.status(400).json({ error: "Недопустимая доска" });
+                    return;
+                }
+
+                // limit клампим, чтобы клиент не мог запросить всю таблицу разом
+                const limit  = Math.min(Math.max(parseInt(String(req.query.limit ?? "100"), 10) || 100, 1), 500);
+                const offset = Math.max(parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
+                const search = String(req.query.search ?? "").slice(0, 32);
+
+                const result = leaderboardService.getAllEntries(boardKey, limit, offset, search);
+                res.json({ ...result, limit, offset, boardKey });
             }
-            res.json({ entries: leaderboardService.getAllEntries(boardKey) });
-        });
+        );
 
         /** POST /api/admin/leaderboard/delete — удалить запись нарушителя */
         app.post("/api/admin/leaderboard/delete", checkAdminAuth, (req, res) => {
