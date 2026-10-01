@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ships — Админка Лидерборда</title>
+  <style>
+    :root {
+      --bg: #121820;
+      --card: #1b2430;
+      --text: #e1e7ec;
+      --text-muted: #8b9bb4;
+      --accent: #3b82f6;
+      --danger: #ef4444;
+      --success: #10b981;
+      --border: #2a3749;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 16px; }
+    .container { max-width: 900px; margin: 0 auto; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+    h1 { font-size: 22px; color: #fff; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .auth-bar { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; }
+    input, select, button { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: #0f151c; color: #fff; font-size: 14px; }
+    input:focus, select:focus { outline: none; border-color: var(--accent); }
+    button { background: var(--accent); cursor: pointer; border: none; font-weight: 500; transition: opacity 0.2s; color: #fff; }
+    button:hover { opacity: 0.9; }
+    button.btn-danger { background: var(--danger); }
+    button.btn-rename { background: #6366f1; }
+    button.btn-secondary { background: #374151; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+    .tab-btn { background: #1e293b; color: var(--text-muted); }
+    .tab-btn.active { background: var(--accent); color: #fff; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--border); }
+    th { color: var(--text-muted); font-size: 12px; text-transform: uppercase; }
+    tr:hover { background: rgba(255,255,255,0.02); }
+    .player-id { font-family: monospace; font-size: 11px; color: var(--text-muted); }
+    .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; background: #263345; }
+    .actions { display: flex; gap: 6px; }
+    .status-msg { margin-top: 10px; font-size: 13px; }
+    .status-ok { color: var(--success); }
+    .status-err { color: var(--danger); }
+    @media (max-width: 600px) {
+      .hide-mobile { display: none; }
+      th, td { padding: 8px 6px; font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>⚓ Ships — Управление лидебордом</h1>
+    <div id="auth-status" class="badge">Не авторизован</div>
+  </header>
+
+  <div class="card">
+    <div class="auth-bar">
+      <input type="password" id="admin-pass" placeholder="Пароль администратора..." style="flex:1;">
+      <button onclick="savePassword()">Войти</button>
+      <button class="btn-secondary" onclick="logout()">Сброс</button>
+    </div>
+    <div id="auth-hint" style="font-size:12px; color:var(--text-muted);">Пароль сохраняется локально в браузере.</div>
+  </div>
+
+  <div class="card" id="content-card" style="display:none;">
+    <div class="tabs">
+      <button class="tab-btn active" id="tab-gold" onclick="switchTab('gold')">Золото (gold)</button>
+      <button class="tab-btn" id="tab-kills" onclick="switchTab('kills')">Убийства (kills)</button>
+      <button class="btn-secondary" style="margin-left:auto;" onclick="loadData()">↻ Обновить</button>
+    </div>
+
+    <div id="status" class="status-msg"></div>
+
+    <div style="overflow-x:auto;">
+      <table id="table">
+        <thead>
+          <tr>
+            <th style="width:40px;">#</th>
+            <th>Имя</th>
+            <th>Очки</th>
+            <th class="hide-mobile">Player ID</th>
+            <th class="hide-mobile">Дата</th>
+            <th style="width:140px;">Действия</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Загрузка...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentBoard = "gold";
+  let adminPassword = localStorage.getItem("ships_admin_key") || "";
+
+  // Вычисляем базовый путь API от текущего URL страницы
+  const basePath = window.location.pathname.replace(/\/admin\/leaderboard\/?$/, "");
+  const apiBase = (basePath ? basePath : "") + "/api/admin/leaderboard";
+
+  if (adminPassword) {
+    document.getElementById("admin-pass").value = adminPassword;
+    checkAuth();
+  }
+
+  // Поддержка нажатия клавиши Enter в поле ввода
+  document.getElementById("admin-pass").addEventListener("keydown", function(e) {
+    if (e.key === "Enter") savePassword();
+  });
+
+  function savePassword() {
+    adminPassword = document.getElementById("admin-pass").value.trim();
+    if (!adminPassword) {
+      alert("Введите пароль");
+      return;
+    }
+    localStorage.setItem("ships_admin_key", adminPassword);
+    checkAuth();
+  }
+
+  function logout() {
+    localStorage.removeItem("ships_admin_key");
+    adminPassword = "";
+    document.getElementById("admin-pass").value = "";
+    document.getElementById("content-card").style.display = "none";
+    document.getElementById("auth-status").textContent = "Не авторизован";
+    document.getElementById("auth-status").style.color = "var(--danger)";
+    setStatus("");
+  }
+
+  async function checkAuth() {
+    try {
+      const url = apiBase + "?boardKey=" + currentBoard + "&adminKey=" + encodeURIComponent(adminPassword);
+      const res = await fetch(url, {
+        headers: { "x-admin-key": adminPassword }
+      });
+      if (res.ok) {
+        document.getElementById("auth-status").textContent = "Авторизован ✓";
+        document.getElementById("auth-status").style.color = "var(--success)";
+        document.getElementById("content-card").style.display = "block";
+        loadData();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        document.getElementById("auth-status").textContent = err.error || "Неверный пароль";
+        document.getElementById("auth-status").style.color = "var(--danger)";
+        document.getElementById("content-card").style.display = "none";
+      }
+    } catch (e) {
+      document.getElementById("auth-status").textContent = "Ошибка связи: " + e.message;
+      document.getElementById("auth-status").style.color = "var(--danger)";
+      document.getElementById("content-card").style.display = "none";
+    }
+  }
+
+  function switchTab(board) {
+    currentBoard = board;
+    document.getElementById("tab-gold").classList.toggle("active", board === "gold");
+    document.getElementById("tab-kills").classList.toggle("active", board === "kills");
+    loadData();
+  }
+
+  async function loadData() {
+    const tbody = document.getElementById("table-body");
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Загрузка данных...</td></tr>';
+    setStatus("");
+
+    try {
+      const url = apiBase + "?boardKey=" + currentBoard + "&adminKey=" + encodeURIComponent(adminPassword);
+      const res = await fetch(url, {
+        headers: { "x-admin-key": adminPassword }
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setStatus(data.error || "Ошибка загрузки", true);
+        return;
+      }
+
+      if (!data.entries || data.entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Таблица лидеров пуста</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = data.entries.map(function(e) {
+        return '<tr>' +
+          '<td><strong>' + e.rank + '</strong></td>' +
+          '<td>' + escapeHtml(e.name) + '</td>' +
+          '<td><span class="badge" style="color:#fbbf24; font-weight:bold;">' + e.score + '</span></td>' +
+          '<td class="hide-mobile"><span class="player-id">' + escapeHtml(e.playerId) + '</span></td>' +
+          '<td class="hide-mobile" style="color:var(--text-muted); font-size:12px;">' + new Date(e.updatedAt * 1000).toLocaleString('ru-RU') + '</td>' +
+          '<td>' +
+            '<div class="actions">' +
+              '<button class="btn-rename" onclick="renamePlayer(\'' + escapeHtml(e.playerId) + '\', \'' + escapeHtml(e.name) + '\')">Имя</button>' +
+              '<button class="btn-danger" onclick="deletePlayer(\'' + escapeHtml(e.playerId) + '\', \'' + escapeHtml(e.name) + '\')">Удалить</button>' +
+            '</div>' +
+          '</td>' +
+        '</tr>';
+      }).join("");
+
+    } catch (err) {
+      setStatus("Ошибка сети: " + err.message, true);
+    }
+  }
+
+  async function deletePlayer(playerId, name) {
+    if (!confirm('Удалить игрока "' + name + '" (' + playerId + ') из доски ' + currentBoard + '?')) return;
+
+    try {
+      const res = await fetch(apiBase + "/delete?adminKey=" + encodeURIComponent(adminPassword), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-key": adminPassword },
+        body: JSON.stringify({ boardKey: currentBoard, playerId: playerId })
+      });
+      const data = await res.json();
+      if (res.ok && data.deleted) {
+        setStatus('Запись игрока "' + name + '" удалена', false);
+        loadData();
+      } else {
+        setStatus(data.error || "Не удалось удалить", true);
+      }
+    } catch (err) {
+      setStatus("Ошибка: " + err.message, true);
+    }
+  }
+
+  async function renamePlayer(playerId, oldName) {
+    const newName = prompt('Новое имя для игрока "' + oldName + '":', "Капитан");
+    if (!newName || newName === oldName) return;
+
+    try {
+      const res = await fetch(apiBase + "/rename?adminKey=" + encodeURIComponent(adminPassword), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-key": adminPassword },
+        body: JSON.stringify({ boardKey: currentBoard, playerId: playerId, newName: newName })
+      });
+      const data = await res.json();
+      if (res.ok && data.renamed) {
+        setStatus('Имя игрока успешно изменено', false);
+        loadData();
+      } else {
+        setStatus(data.error || "Не удалось изменить имя", true);
+      }
+    } catch (err) {
+      setStatus("Ошибка: " + err.message, true);
+    }
+  }
+
+  function setStatus(msg, isError) {
+    const el = document.getElementById("status");
+    el.textContent = msg;
+    el.className = "status-msg " + (isError ? "status-err" : "status-ok");
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+</script>
+</body>
+</html>
