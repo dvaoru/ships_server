@@ -2,6 +2,13 @@ import Database from "better-sqlite3";
 import * as path from "path";
 import * as fs from "fs";
 import { fileURLToPath } from "url";
+import filter from "leo-profanity";
+
+// Инициализация словарей фильтра нецензурных выражений (RU + EN)
+filter.loadDictionary("ru");
+const ruWords = filter.list();
+filter.loadDictionary("en");
+filter.add(ruWords);
 
 // ─── Пути ────────────────────────────────────────────────────────────────────
 
@@ -61,6 +68,57 @@ export class LeaderboardService {
         console.log(`[Leaderboard] SQLite готова: ${DB_FILE}`);
     }
 
+    // ─── Санитайзер и фильтр имени ───────────────────────────────────────────
+    private sanitizePlayerName(rawName: string): string {
+        if (!rawName) return "Капитан";
+
+        // 1. Убираем лишние пробелы, переносы строк и непечатные символы
+        let clean = rawName
+            .replace(/[\r\n\t]/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+
+        // 2. Блокируем ссылки и рекламу (http://, https://, t.me/, www., .com, .ru)
+        const linkPattern = /(https?:\/\/|www\.|t\.me\/|[a-z0-9-]+\.(com|ru|net|org|io|gg|xyz))/i;
+        if (linkPattern.test(clean)) {
+            return "Капитан";
+        }
+
+        // 3. Ограничение длины: от 1 до 16 символов
+        if (clean.length === 0) return "Капитан";
+        if (clean.length > 16) {
+            clean = clean.substring(0, 16).trim();
+        }
+
+        // 4. Цензурируем словарный мат через leo-profanity (заменяет буквы на звёздочки *)
+        if (filter.check(clean)) {
+            const before = clean;
+            clean = filter.clean(clean);
+            console.log(`[Leaderboard] Отцензурирован мат в нике: "${before}" -> "${clean}"`);
+        }
+
+        // 5. Дополнительная замена типичных матерных корней и замаскированных слов на звёздочки
+        const obscenePatterns = [
+            /[хx][уy][йеяиюe][а-яa-z0-9]*/gi,
+            /п[иеё1i][зz3][дd][а-яa-z0-9]*/gi,
+            /[еeё][бb][аaлляттьу][а-яa-z0-9]*/gi,
+            /[бb][лl][яa][дdтt]?[а-яa-z0-9]*/gi,
+            /[сc][уy][кk][аa][а-яa-z0-9]*/gi,
+            /[мm][уy][дd][аa][кk][а-яa-z0-9]*/gi
+        ];
+
+        for (const pattern of obscenePatterns) {
+            clean = clean.replace(pattern, (match) => "*".repeat(match.length));
+        }
+
+        // Если ник состоял только из мата и стал "***", либо одни знаки пунктуации:
+        if (!clean.replace(/[*_\s-]/g, "")) {
+            return "***";
+        }
+
+        return clean || "Капитан";
+    }
+
     // ─── Публичный API ───────────────────────────────────────────────────────
 
     /**
@@ -71,7 +129,7 @@ export class LeaderboardService {
     submit(boardKey: string, playerId: string, playerName: string, score: number): boolean {
         if (!boardKey || !playerId || score <= 0) return false;
 
-        const name = playerName?.trim() || "Игрок";
+        const name = this.sanitizePlayerName(playerName);
 
         // UPSERT: вставляем новую запись или обновляем, только если счёт выше
         const result = this.db.prepare(`
