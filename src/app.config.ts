@@ -51,16 +51,52 @@ const server = defineServer({
             next();
         });
 
+        // ─── Разрешённые доски ────────────────────────────────────────────────
+        const ALLOWED_BOARDS = new Set(["gold", "kills"]);
+
+        // ─── In-memory rate limiter: 10 запросов в минуту с одного IP ────────
+        const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+        function checkRateLimit(ip: string): boolean {
+            const now   = Date.now();
+            const entry = rateLimitMap.get(ip);
+
+            if (!entry || now > entry.resetAt) {
+                rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 });
+                return true;
+            }
+            if (entry.count >= 10) return false;
+            entry.count++;
+            return true;
+        }
+
+        // Чистим старые записи раз в 5 минут, чтобы Map не росла бесконечно
+        setInterval(() => {
+            const now = Date.now();
+            rateLimitMap.forEach((v, k) => { if (now > v.resetAt) rateLimitMap.delete(k); });
+        }, 300_000);
+
         /**
          * POST /api/leaderboard/submit
          * Body: { boardKey: string, playerId: string, playerName: string, score: number }
          * Обновляет рекорд игрока (только если score выше предыдущего).
          */
         app.post("/api/leaderboard/submit", (req, res) => {
+            const ip = (req.headers["x-forwarded-for"] as string ?? req.socket.remoteAddress ?? "").split(",")[0].trim();
+            if (!checkRateLimit(ip)) {
+                res.status(429).json({ error: "Слишком много запросов — попробуй через минуту" });
+                return;
+            }
+
             const { boardKey, playerId, playerName, score } = req.body ?? {};
 
             if (!boardKey || !playerId || typeof score !== "number") {
                 res.status(400).json({ error: "Неверные параметры: boardKey, playerId и score обязательны" });
+                return;
+            }
+
+            if (!ALLOWED_BOARDS.has(boardKey)) {
+                res.status(400).json({ error: `Недопустимое имя доски. Разрешены: ${[...ALLOWED_BOARDS].join(", ")}` });
                 return;
             }
 
@@ -71,14 +107,26 @@ const server = defineServer({
         /**
          * GET /api/leaderboard?boardKey=gold&top=15&playerId=xxx
          * Возвращает топ N строк и позицию текущего игрока (если передан playerId).
+         * playerId НЕ включается в ответ — только флаг isCurrentPlayer на нужной строке.
          */
         app.get("/api/leaderboard", (req, res) => {
+            const ip = (req.headers["x-forwarded-for"] as string ?? req.socket.remoteAddress ?? "").split(",")[0].trim();
+            if (!checkRateLimit(ip)) {
+                res.status(429).json({ error: "Слишком много запросов — попробуй через минуту" });
+                return;
+            }
+
             const boardKey = String(req.query.boardKey ?? "");
             const top      = Math.min(Math.max(parseInt(String(req.query.top ?? "15"), 10) || 15, 1), 100);
             const playerId = String(req.query.playerId ?? "");
 
             if (!boardKey) {
                 res.status(400).json({ error: "Параметр boardKey обязателен" });
+                return;
+            }
+
+            if (!ALLOWED_BOARDS.has(boardKey)) {
+                res.status(400).json({ error: `Недопустимое имя доски. Разрешены: ${[...ALLOWED_BOARDS].join(", ")}` });
                 return;
             }
 

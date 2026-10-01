@@ -15,9 +15,10 @@ const DB_FILE   = path.join(DATA_DIR, "leaderboard.db");
 
 export interface LeaderboardEntry {
     rank: number;
-    playerId: string;
     name: string;
     score: number;
+    /** true, если эта строка принадлежит запрашивающему игроку (сервер выставляет сам) */
+    isCurrentPlayer: boolean;
 }
 
 export interface LeaderboardResponse {
@@ -104,10 +105,11 @@ export class LeaderboardService {
         `).all(boardKey, topCount) as Array<{ player_id: string; player_name: string; score: number }>;
 
         const entries: LeaderboardEntry[] = rows.map((row, index) => ({
-            rank:     index + 1,
-            playerId: row.player_id,
-            name:     row.player_name,
-            score:    row.score,
+            rank:            index + 1,
+            name:            row.player_name,
+            score:           row.score,
+            // playerId не возвращаем наружу — только помечаем строку текущего игрока
+            isCurrentPlayer: !!playerId && row.player_id === playerId,
         }));
 
         // Позиция текущего игрока (считаем через COUNT среди тех, кто имеет score >= его)
