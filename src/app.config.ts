@@ -283,6 +283,10 @@ const server = defineServer({
   let currentBoard = "gold";
   let adminPassword = localStorage.getItem("ships_admin_key") || "";
 
+  // Базовый путь: если открыто по /a/admin/leaderboard, то API будет по /a/api/admin/leaderboard
+  const basePath = window.location.pathname.replace(/\/admin\/leaderboard\/?$/, "");
+  const apiBase = (basePath ? basePath : "") + "/api/admin/leaderboard";
+
   if (adminPassword) {
     document.getElementById("admin-pass").value = adminPassword;
     checkAuth();
@@ -304,16 +308,23 @@ const server = defineServer({
   }
 
   async function checkAuth() {
-    const res = await fetch(\`./api/admin/leaderboard?boardKey=\${currentBoard}\`, {
-      headers: { "x-admin-key": adminPassword }
-    });
-    if (res.ok) {
-      document.getElementById("auth-status").textContent = "Авторизован ✓";
-      document.getElementById("auth-status").style.color = "var(--success)";
-      document.getElementById("content-card").style.display = "block";
-      loadData();
-    } else {
-      document.getElementById("auth-status").textContent = "Неверный пароль";
+    try {
+      const res = await fetch(\`\${apiBase}?boardKey=\${currentBoard}&adminKey=\${encodeURIComponent(adminPassword)}\`, {
+        headers: { "x-admin-key": adminPassword }
+      });
+      if (res.ok) {
+        document.getElementById("auth-status").textContent = "Авторизован ✓";
+        document.getElementById("auth-status").style.color = "var(--success)";
+        document.getElementById("content-card").style.display = "block";
+        loadData();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        document.getElementById("auth-status").textContent = err.error || "Неверный пароль";
+        document.getElementById("auth-status").style.color = "var(--danger)";
+        document.getElementById("content-card").style.display = "none";
+      }
+    } catch (e) {
+      document.getElementById("auth-status").textContent = "Ошибка связи: " + e.message;
       document.getElementById("auth-status").style.color = "var(--danger)";
       document.getElementById("content-card").style.display = "none";
     }
@@ -332,7 +343,7 @@ const server = defineServer({
     setStatus("");
 
     try {
-      const res = await fetch(\`./api/admin/leaderboard?boardKey=\${currentBoard}\`, {
+      const res = await fetch(\`\${apiBase}?boardKey=\${currentBoard}&adminKey=\${encodeURIComponent(adminPassword)}\`, {
         headers: { "x-admin-key": adminPassword }
       });
       const data = await res.json();
@@ -372,7 +383,7 @@ const server = defineServer({
     if (!confirm(\`Удалить игрока "\${name}" (\${playerId}) из доски \${currentBoard}?\`)) return;
 
     try {
-      const res = await fetch("./api/admin/leaderboard/delete", {
+      const res = await fetch(\`\${apiBase}/delete?adminKey=\${encodeURIComponent(adminPassword)}\`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-admin-key": adminPassword },
         body: JSON.stringify({ boardKey: currentBoard, playerId })
@@ -394,7 +405,7 @@ const server = defineServer({
     if (!newName || newName === oldName) return;
 
     try {
-      const res = await fetch("./api/admin/leaderboard/rename", {
+      const res = await fetch(\`\${apiBase}/rename?adminKey=\${encodeURIComponent(adminPassword)}\`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-admin-key": adminPassword },
         body: JSON.stringify({ boardKey: currentBoard, playerId, newName })
