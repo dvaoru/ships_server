@@ -23,7 +23,7 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
   private totalIslands = 10; //10;//20;  // Сколько островов генерировать
   private islandMinRadius = 5; // Минимальный радиус острова (юниты)
   private islandMaxRadius = 8; // Максимальный радиус острова
-  private islandTypes = 3; // Количество типов префабов на клиенте
+  private islandTypes = 4; // Количество типов префабов на клиенте
   private minIslandSpacing = 5; // Минимальный зазор между краями островов
 
   // Настройка фиксированных размеров. Если типа нет в словаре, он будет рандомного размера.
