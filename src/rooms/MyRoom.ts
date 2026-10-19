@@ -1,4 +1,4 @@
-import { Room, Client, CloseCode } from "colyseus";
+import { Room, Client, CloseCode, ServerError } from "colyseus";
 import { MyRoomState, Player, Coin, Pickup, Island } from "./schema/MyRoomState.js";
 
 export class MyRoom extends Room<{ state: MyRoomState }> {
@@ -58,6 +58,11 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
   private tierThresholds = [0, 15, 35, 65, 110, 175, 260];
 
   private savedProgress = new Map<string, { gold: number; tier: number }>();
+
+  // ─── Версионирование клиентов (задел на будущее) ─────────────────────
+  // Минимальная поддерживаемая версия. Задаётся через ENV (например MIN_CLIENT_VERSION="1.0.0").
+  // Если пустая строка (по умолчанию) — проверка выключена, сервер принимает всех клиентов.
+  private minSupportedVersion: string = process.env.MIN_CLIENT_VERSION || "";
 
   // ─── AFK-детекция ───────────────────────────────────────────────────
   private afkKillMs = 10000;   // 10 сек тишины → «убить» игрока (hp=0)
