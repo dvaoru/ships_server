@@ -4,6 +4,28 @@ import { MyRoomState, Player, Coin, Pickup, Island } from "./schema/MyRoomState.
 export class MyRoom extends Room<{ state: MyRoomState }> {
   maxClients = 15;
 
+  public static activeRooms: Set<MyRoom> = new Set();
+
+  public static getGlobalStats(): { humans: number; bots: number; rooms: number } {
+    let humans = 0;
+    let bots = 0;
+    for (const room of MyRoom.activeRooms) {
+      humans += room.clients.length;
+      if (room.state && room.state.players) {
+        room.state.players.forEach((player, id) => {
+          if (id.startsWith("bot_")) {
+            bots++;
+          }
+        });
+      }
+    }
+    return {
+      humans,
+      bots,
+      rooms: MyRoom.activeRooms.size
+    };
+  }
+
   private mapWidth = 200;
   private mapHeight = 200;
 
@@ -49,6 +71,7 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
     myState.mapWidth = this.mapWidth;
     myState.mapHeight = this.mapHeight;
     this.state = myState;
+    MyRoom.activeRooms.add(this);
     console.log("Морская комната создана и ждет пиратов!");
 
     // Генерируем острова ДО монет, чтобы монеты их избегали
@@ -398,6 +421,7 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
   }
 
   onDispose() {
+    MyRoom.activeRooms.delete(this);
     console.log("room", this.roomId, "disposing...");
   }
 

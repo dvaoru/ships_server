@@ -12,6 +12,7 @@ import {
  */
 import { MyRoom } from "./rooms/MyRoom.js";
 import { leaderboardService } from "./leaderboard.js";
+import { statsService } from "./stats.js";
 import express from "express";
 import * as path from "path";
 import { fileURLToPath } from "url";
@@ -45,8 +46,9 @@ const server = defineServer({
      * Read more: https://expressjs.com/en/starter/basic-routing.html
      */
     express: (app) => {
-        // ─── Инициализация БД лидерборда ─────────────────────────────────────
+        // ─── Инициализация БД лидерборда и статистики ─────────────────────────
         leaderboardService.load();
+        statsService.load(() => MyRoom.getGlobalStats());
 
         // ─── Парсинг JSON-тела POST-запросов ─────────────────────────────────
         app.use(express.json());
@@ -230,6 +232,24 @@ const server = defineServer({
             const renamed = leaderboardService.renameEntry(boardKey, playerId, newName);
             res.json({ ok: true, renamed });
         });
+
+        /** GET /api/admin/stats — онлайн и историческая статистика */
+        app.get(
+            "/api/admin/stats",
+            (req, res, next) => {
+                const ip = (req.headers["x-forwarded-for"] as string ?? req.socket.remoteAddress ?? "").split(",")[0].trim();
+                if (!checkAdminRateLimit(ip)) {
+                    res.status(429).json({ error: "Слишком много запросов — попробуй через минуту" });
+                    return;
+                }
+                next();
+            },
+            checkAdminAuth,
+            (req, res) => {
+                const data = statsService.getStats();
+                res.json(data);
+            }
+        );
 
         /** GET /admin/leaderboard — HTML интерфейс админки */
         app.get("/admin/leaderboard", (req, res) => {
