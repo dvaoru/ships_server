@@ -230,9 +230,10 @@ export class MyRoom extends Room<{ state: MyRoomState }> {
           player.gold = saved.gold;
           player.tier = saved.tier;
         } else {
-          // При обычном возрождении сбрасываем золото и тир к начальным значениям
+          // Новый заплыв начинается без золота и убийств предыдущего.
           player.gold = 0;
           player.tier = 1;
+          player.kills = 0;
         }
         this.savedProgress.delete(client.sessionId);
         this.afkKilled.delete(client.sessionId);
